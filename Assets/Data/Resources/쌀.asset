@@ -10,9 +10,9 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3c9999913fc865941964d4b4e7be2985, type: 3}
-  m_Name: "\uBCBC"
+  m_Name: "\uC300"
   m_EditorClassIdentifier: Assembly-CSharp::FactoryDelivery.Data.ResourceDataSO
-  DisplayName: "\uBCBC"
+  DisplayName: "\uC300"
   Description: "\uC870\uC120\uC758 \uC8FC\uC2DD\uC778 \uC300\uC758 \uC218\uD655 \uC804
     \uC6D0\uC790\uC7AC"
   Category: 0

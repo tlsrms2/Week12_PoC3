@@ -1,65 +1,71 @@
 namespace FactoryDelivery.Utils
 {
     /// <summary>
-    /// Central repository for all game-wide constants.
-    /// Organized by system domain for easy discoverability and maintenance.
+    /// 게임 전반에서 사용되는 모든 상수를 관리하는 중앙 저장소입니다.
+    /// 관리와 검색이 용이하도록 시스템 도메인별로 정리되어 있습니다.
     /// </summary>
     public static class Constants
     {
-        // ─────────────────────────────────────────────
-        //  Grid
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  그리드
+        // =========================================================================
 
-        /// <summary>Width of the game grid in cells.</summary>
+        /// <summary>게임 그리드의 셀 단위 너비입니다.</summary>
         public static int GridWidth = 20;
 
-        /// <summary>Height of the game grid in cells.</summary>
+        /// <summary>게임 그리드의 셀 단위 높이입니다.</summary>
         public static int GridHeight = 20;
 
-        /// <summary>World-space size of a single grid cell.</summary>
+        /// <summary>One purchasable land parcel is an 8x8 grid.</summary>
+        public static int LandPlotSize = 8;
+
+        /// <summary>단일 그리드 셀의 월드 스페이스 크기입니다.</summary>
         public static float CellSize = 1f;
 
-        // ─────────────────────────────────────────────
-        //  Defaults
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  기본 설정
+        // =========================================================================
 
-        /// <summary>Default cooldown duration (in seconds) for resource production tiles.</summary>
+        /// <summary>자원 생산 타일의 기본 쿨다운 시간(초)입니다.</summary>
         public static float DefaultResourceCooldown = 5f;
 
-        /// <summary>Maximum upgrade level a tile can reach.</summary>
+        /// <summary>타일이 도달할 수 있는 최대 업그레이드 레벨입니다.</summary>
         public static int MaxTileLevel = 5;
 
-        // ─────────────────────────────────────────────
-        //  Block / Day Structure
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  블록 / 하루 구조
+        // =========================================================================
 
-        /// <summary>Number of placement blocks available per in-game day.</summary>
+        /// <summary>게임 내 하루 동안 사용 가능한 배치 블록의 수입니다.</summary>
         public static int BlocksPerDay = 4;
 
-        /// <summary>Maximum number of slices a player can use per day.</summary>
+        /// <summary>플레이어가 하루에 사용할 수 있는 최대 슬라이스 수입니다.</summary>
         public static int MaxSlicesPerDay = 1;
 
-        // ─────────────────────────────────────────────
-        //  Economy
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  경제
+        // =========================================================================
 
-        /// <summary>Base cost for a shop reroll.</summary>
+        /// <summary>상점 리롤의 기본 비용입니다.</summary>
         public static int RerollBaseCost = 10;
 
-        /// <summary>Multiplier applied to the reroll cost after each consecutive reroll.</summary>
+        /// <summary>연속 리롤 시마다 리롤 비용에 적용되는 배수입니다.</summary>
         public static float RerollCostMultiplier = 2f;
 
-        // ─────────────────────────────────────────────
-        //  Logistics / Workers
-        // ─────────────────────────────────────────────
+        /// <summary>Cost to unlock one adjacent land parcel.</summary>
+        public static int LandPurchaseCost = 100;
 
-        /// <summary>Base movement speed of worker units (world units per second).</summary>
+        // =========================================================================
+        //  물류 / 일꾼
+        // =========================================================================
+
+        /// <summary>일꾼 유닛의 기본 이동 속도 (초당 월드 단위)입니다.</summary>
         public static float WorkerBaseSpeed = 3f;
 
-        /// <summary>Minimum distance workers maintain from each other to avoid overlap.</summary>
+        /// <summary>일꾼들이 서로 겹치지 않도록 유지하는 최소 거리입니다.</summary>
         public static float WorkerMinDistance = 0.5f;
 
-        /// <summary>Maximum carrying capacity of worker units.</summary>
+        /// <summary>일꾼 유닛의 최대 운반 용량입니다.</summary>
         public static int WorkerCapacity = 3;
     }
 }

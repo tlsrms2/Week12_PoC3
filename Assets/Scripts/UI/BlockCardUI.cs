@@ -9,22 +9,22 @@ namespace FactoryDelivery.UI
 {
     /// <summary>
     /// 하단 덱의 개별 블록 카드를 관리하고, 마우스 드래그 앤 드롭 조작을 통해
-    /// 맵 상에 테트로미노 블록 배치를 트리거해 주는 고급 UI 카드 컴포넌트.
+    /// 맵 상에 테트로미노 블록 배치를 트리거해 주는 UI 카드 컴포넌트.
     /// </summary>
     public class BlockCardUI : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerUpHandler
     {
-        // ─────────────────────────────────────────────
-        //  Inspector
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  인스펙터
+        // =========================================================================
 
         [Header("카드 정보 GUI")]
         [SerializeField] private TextMeshProUGUI _cardNameText;
         [SerializeField] private Image _cardBackgroundImage;
         [SerializeField] private CanvasGroup _canvasGroup;
 
-        // ─────────────────────────────────────────────
-        //  Runtime State
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  런타임 상태
+        // =========================================================================
 
         private BlockInstance _blockInstance;
         private BlockPlacer _blockPlacer;
@@ -33,12 +33,12 @@ namespace FactoryDelivery.UI
         private Transform _originalParent;
         private Canvas _parentCanvas;
 
-        // ─────────────────────────────────────────────
-        //  Setup & API
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  설정 및 API
+        // =========================================================================
 
         /// <summary>
-        /// 카드 스펙을 바인딩하고 초기 부모를 캐싱한다.
+        /// 카드 데이터를 바인딩하고 초기 부모를 캐싱한다.
         /// </summary>
         public void Initialize(BlockInstance block, BlockPlacer placer, BlockDeckManager deckMgr, Canvas canvas)
         {
@@ -63,16 +63,16 @@ namespace FactoryDelivery.UI
                 }
             }
 
-            // Draw block shape preview
+            // 블록 모양 프리뷰 그리기
             CreateBlockShapePreview();
         }
 
-        // ─────────────────────────────────────────────
-        //  Drag & Drop Interactions
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  드래그 앤 드롭 상호작용
+        // =========================================================================
 
         /// <summary>
-        /// 마우스 좌클릭 시 작동. 오리지널 위치를 기억하고 드래그 모드를 시작한다.
+        /// 마우스 좌클릭 시 작동. 기존 위치를 기억하고 드래그 모드를 시작한다.
         /// </summary>
         public void OnPointerDown(PointerEventData eventData)
         {
@@ -90,10 +90,10 @@ namespace FactoryDelivery.UI
             // 캔버스 최상단에 렌더링되도록 부모 임시 변경
             transform.SetParent(_parentCanvas.transform);
 
-            // BlockPlacer에 블록 넘겨 배치 프리뷰 모드 작동 시작!
+            // BlockPlacer에 블록 넘겨 배치 프리뷰 모드 작동 시작
             _blockPlacer.StartPlacing(_blockInstance);
 
-            // 드래그 개시를 덱 매니저에 보고
+            // 드래그 시작을 덱 매니저에 보고
             if (_deckManager != null)
             {
                 _deckManager.OnCardDragStarted(this);
@@ -101,11 +101,11 @@ namespace FactoryDelivery.UI
         }
 
         /// <summary>
-        /// 마우스 드래그 중. 마우스 포지션에 맞추어 카드 UI를 강제로 끌어다 이동시킨다.
+        /// 마우스 드래그 중. 마우스 포지션에 맞추어 카드 UI를 이동시킨다.
         /// </summary>
         public void OnDrag(PointerEventData eventData)
         {
-            // 드래그 중인 카드를 캔버스의 로컬 공간에 맞추어 마우스를 졸졸 따라다니게 함
+            // 드래그 중인 카드를 캔버스의 로컬 공간에 맞추어 마우스를 따라다니게 함
             if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
                 _parentCanvas.transform as RectTransform,
                 eventData.position,
@@ -166,7 +166,7 @@ namespace FactoryDelivery.UI
 
             if (placementSuccess)
             {
-                // 배치 대성공! 이 카드는 제 몫을 다했으므로 파괴하고 덱에서 완전히 지운다.
+                // 배치 성공! 이 카드는 역할을 다했으므로 파괴하고 덱에서 제거한다.
                 if (_deckManager != null)
                 {
                     _deckManager.RemoveCard(this);
@@ -175,12 +175,15 @@ namespace FactoryDelivery.UI
             }
             else
             {
-                // 배치 실패 또는 취소! 카드를 하단 슬롯 오리지널 위치로 정중하게 복귀시킴
+                // 배치 실패 또는 취소! 카드를 원래 위치로 복귀시킴
                 _blockPlacer.CancelPlacing();
                 ReturnToOriginalPosition();
             }
         }
 
+        /// <summary>
+        /// 카드를 원래의 덱 위치로 되돌립니다.
+        /// </summary>
         private void ReturnToOriginalPosition()
         {
             transform.SetParent(_originalParent);
@@ -199,7 +202,7 @@ namespace FactoryDelivery.UI
         }
 
         /// <summary>
-        /// 카드 상부에 블록의 2D 테트로미노 형태를 색상별 타일 그리드로 그려서 미리 보여줍니다.
+        /// 카드 상부에 블록의 2D 형태를 미리 보여줍니다.
         /// </summary>
         private void CreateBlockShapePreview()
         {
@@ -280,6 +283,9 @@ namespace FactoryDelivery.UI
             }
         }
 
+        /// <summary>
+        /// 블록 패턴 이름을 기반으로 표시용 이름을 반환합니다.
+        /// </summary>
         private static string GetCardDisplayName(string patternName)
         {
             if (string.IsNullOrEmpty(patternName)) return string.Empty;
@@ -288,6 +294,9 @@ namespace FactoryDelivery.UI
             return patternName.Replace("무작위 ", string.Empty);
         }
 
+        /// <summary>
+        /// 카드 이름 텍스트의 스타일을 조정합니다.
+        /// </summary>
         private void StyleCardName()
         {
             RectTransform nameRect = _cardNameText.rectTransform;

@@ -3,27 +3,30 @@ using UnityEngine.Events;
 
 namespace FactoryDelivery.Events
 {
+    // =========================================================================
+    //  Int 이벤트 채널 ScriptableObject
+    // =========================================================================
+
     /// <summary>
-    /// ScriptableObject-based event channel with an <see cref="int"/> payload.
-    /// Used for broadcasting events that carry a single integer value,
-    /// such as score changes, level indices, or quantity updates.
+    /// int 타입의 데이터를 전달하는 ScriptableObject 기반 이벤트 채널입니다.
+    /// 점수 변경, 레벨 인덱스, 수량 업데이트와 같이 단일 정수 값을 전달하는 이벤트에 사용됩니다.
     /// </summary>
     [CreateAssetMenu(fileName = "IntEventChannel", menuName = "FactoryDelivery/Events/Int Event Channel")]
     public class IntEventChannelSO : ScriptableObject
     {
         /// <summary>
-        /// Raised when the event is broadcast. Listeners receive the integer payload.
+        /// 이벤트가 발생했을 때 호출되는 UnityAction입니다. 구독자는 정수 데이터를 받습니다.
         /// </summary>
         public event UnityAction<int> OnEventRaised;
 
         /// <summary>
-        /// Broadcasts the event with the specified integer value to all registered listeners.
+        /// 등록된 모든 리스너에게 지정된 정수 값과 함께 이벤트를 방송합니다.
         /// </summary>
-        /// <param name="value">The integer payload to send with the event.</param>
+        /// <param name="value">이벤트와 함께 전달할 정수 데이터입니다.</param>
         public void RaiseEvent(int value)
         {
 #if UNITY_EDITOR
-            Debug.Log($"[IntEventChannel] '{name}' raised with value: {value}.");
+            Debug.Log($"[IntEventChannel] '{name}' 이벤트 발생 — 값: {value}.");
 #endif
             OnEventRaised?.Invoke(value);
         }

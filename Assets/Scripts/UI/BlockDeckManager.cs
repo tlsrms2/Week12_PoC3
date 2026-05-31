@@ -11,13 +11,13 @@ namespace FactoryDelivery.UI
 {
     /// <summary>
     /// 하단 블록 카드 덱을 관리하고, 엽전(골드)을 지불하여 새로운 블록들을 다시 무작위 배급받는
-    /// Reroll(리롤) 시스템과 카드 카드 레이아웃 배치를 조율하는 매니저.
+    /// 리롤(Reroll) 시스템과 카드 레이아웃 배치를 조율하는 매니저.
     /// </summary>
     public class BlockDeckManager : MonoBehaviour
     {
-        // ─────────────────────────────────────────────
-        //  Inspector: References
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  인스펙터: 참조
+        // =========================================================================
 
         [Header("코어 시스템 참조")]
         [SerializeField] private DayManager _dayManager;
@@ -34,16 +34,16 @@ namespace FactoryDelivery.UI
         [SerializeField] private Button _rerollButton;
         [SerializeField] private TextMeshProUGUI _rerollButtonText;
 
-        // ─────────────────────────────────────────────
-        //  Runtime State
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  런타임 상태
+        // =========================================================================
 
         private readonly List<BlockCardUI> _activeCards = new List<BlockCardUI>();
         private int _currentRerollCost;
 
-        // ─────────────────────────────────────────────
-        //  Unity Lifecycle
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  유니티 생명주기
+        // =========================================================================
 
         private void OnEnable()
         {
@@ -92,9 +92,9 @@ namespace FactoryDelivery.UI
             UpdateRerollButtonState();
         }
 
-        // ─────────────────────────────────────────────
-        //  Deck Management
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  덱 관리
+        // =========================================================================
 
         private void ResetRerollCost(int day)
         {
@@ -102,6 +102,9 @@ namespace FactoryDelivery.UI
             UpdateRerollText();
         }
 
+        /// <summary>
+        /// 배급받은 블록 목록으로 덱을 채웁니다.
+        /// </summary>
         private void PopulateDeck(List<BlockInstance> blocks)
         {
             ClearDeck();
@@ -110,14 +113,28 @@ namespace FactoryDelivery.UI
 
             foreach (var block in blocks)
             {
-                BlockCardUI card = Instantiate(_cardPrefab, _deckContainer);
-                card.Initialize(block, _blockPlacer, this, _parentCanvas);
-                _activeCards.Add(card);
+                AddCard(block);
             }
 
             Debug.Log($"[BlockDeckManager] 덱 카드 {_activeCards.Count}개 로드 완료.");
         }
 
+        public bool AddCard(BlockInstance block)
+        {
+            if (block == null || _cardPrefab == null || _deckContainer == null)
+            {
+                return false;
+            }
+
+            BlockCardUI card = Instantiate(_cardPrefab, _deckContainer);
+            card.Initialize(block, _blockPlacer, this, _parentCanvas);
+            _activeCards.Add(card);
+            return true;
+        }
+
+        /// <summary>
+        /// 현재 덱의 모든 카드를 제거합니다.
+        /// </summary>
         private void ClearDeck()
         {
             foreach (var card in _activeCards)
@@ -141,10 +158,13 @@ namespace FactoryDelivery.UI
             }
         }
 
-        // ─────────────────────────────────────────────
-        //  Reroll (리롤) 로직
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  리롤 (Reroll) 로직
+        // =========================================================================
 
+        /// <summary>
+        /// 리롤 버튼 클릭 시 실행됩니다.
+        /// </summary>
         private void OnRerollClicked()
         {
             if (_dayManager == null || _blockFactory == null) return;
@@ -197,6 +217,9 @@ namespace FactoryDelivery.UI
             }
         }
 
+        /// <summary>
+        /// 리롤 버튼의 활성화 상태를 업데이트합니다.
+        /// </summary>
         private void UpdateRerollButtonState()
         {
             if (_rerollButton == null) return;
@@ -212,6 +235,9 @@ namespace FactoryDelivery.UI
             _rerollButton.interactable = canReroll;
         }
 
+        /// <summary>
+        /// 리롤 텍스트를 현재 비용에 맞게 업데이트합니다.
+        /// </summary>
         private void UpdateRerollText()
         {
             if (_rerollButtonText != null)
@@ -220,9 +246,9 @@ namespace FactoryDelivery.UI
             }
         }
 
-        // ─────────────────────────────────────────────
-        //  Card Drag State Callbacks (for layout control)
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  카드 드래그 상태 콜백 (레이아웃 제어용)
+        // =========================================================================
 
         public void OnCardDragStarted(BlockCardUI card)
         {

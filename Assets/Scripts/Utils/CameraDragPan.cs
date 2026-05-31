@@ -9,7 +9,7 @@ namespace FactoryDelivery.Utils
     [RequireComponent(typeof(Camera))]
     public class CameraDragPan : MonoBehaviour
     {
-        [Header("Zoom Settings")]
+        [Header("줌 설정")]
         [Tooltip("최소 줌 크기 (가까이)")]
         [SerializeField] private float minZoom = 4f;
 

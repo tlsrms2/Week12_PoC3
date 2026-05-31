@@ -3100,13 +3100,14 @@ GameObject:
   - component: {fileID: 686788299}
   - component: {fileID: 686788301}
   - component: {fileID: 686788300}
+  - component: {fileID: 686788302}
   m_Layer: 0
   m_Name: InventoryPanel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &686788299
 RectTransform:
   m_ObjectHideFlags: 0
@@ -3169,6 +3170,21 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 686788298}
   m_CullTransparentMesh: 1
+--- !u!114 &686788302
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 686788298}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 66c4623ca88caee4ca030d119ea86edc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FactoryDelivery.UI.InventoryUI
+  _itemsContainer: {fileID: 1152406270}
+  _totalValueText: {fileID: 2007628014}
+  _globalSellAllButton: {fileID: 80440826}
 --- !u!1 &692909725
 GameObject:
   m_ObjectHideFlags: 0
@@ -6518,10 +6534,6 @@ MonoBehaviour:
   _dayText: {fileID: 1168751973}
   _quotaText: {fileID: 181708662}
   _walletText: {fileID: 791158110}
-  _quotaProgressBar: {fileID: 0}
-  _progressBarFillImage: {fileID: 0}
-  _progressBarNormalColor: {r: 0.85, g: 0.45, b: 0.15, a: 1}
-  _progressBarCompletedColor: {r: 0.15, g: 0.75, b: 0.15, a: 1}
   _phaseStatusText: {fileID: 884876192}
   _pauseButton: {fileID: 1143232176}
   _pauseButtonText: {fileID: 1861186777}
@@ -6530,6 +6542,8 @@ MonoBehaviour:
   _speed3XButton: {fileID: 447451565}
   _actionButton: {fileID: 1143232176}
   _actionButtonText: {fileID: 1861186777}
+  _settlementPanel: {fileID: 1024409901}
+  _settlementSummaryText: {fileID: 2006225540}
 --- !u!1 &1371798883
 GameObject:
   m_ObjectHideFlags: 0

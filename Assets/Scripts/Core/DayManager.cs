@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using FactoryDelivery.Block;
+using FactoryDelivery.Data;
 using FactoryDelivery.Events;
+using FactoryDelivery.Grid;
 using FactoryDelivery.Utils;
 
 namespace FactoryDelivery.Core
@@ -18,6 +20,12 @@ namespace FactoryDelivery.Core
         Settlement
     }
 
+    public enum DayPeriod
+    {
+        Day,
+        Night
+    }
+
     /// <summary>
     /// Day 단위 코어 루프를 제어하는 매니저.
     /// 가동 → 정산 순서로 진행되며,
@@ -25,19 +33,27 @@ namespace FactoryDelivery.Core
     /// </summary>
     public class DayManager : MonoBehaviour
     {
-        // ─────────────────────────────────────────────
+        // =========================================================================
         //  Inspector
-        // ─────────────────────────────────────────────
+        // =========================================================================
 
         [Header("매니저 참조")]
         [SerializeField] private BlockFactory _blockFactory;
         [SerializeField] private BlockPlacer _blockPlacer;
         [SerializeField] private QuotaManager _quotaManager;
+        [SerializeField] private GridManager _gridManager;
+        [SerializeField] private TributeManager _tributeManager;
         [SerializeField] private FactoryDelivery.Logistics.WorkerSpawner _workerSpawner;
 
         [Header("가동 페이즈 설정")]
         [Tooltip("가동 페이즈의 제한 시간 (초)")]
         [SerializeField] private float _operationTimeLimit = 60f;
+
+        [Header("낮/밤 배율")]
+        [SerializeField] private float _dayWorkerSpeedMultiplier = 1f;
+        [SerializeField] private float _nightWorkerSpeedMultiplier = 1f;
+        [SerializeField] private float _dayProcessingSpeedMultiplier = 1f;
+        [SerializeField] private float _nightProcessingSpeedMultiplier = 1f;
 
         [Header("이벤트 채널")]
         [Tooltip("페이즈 전환 시 발행")]
@@ -52,15 +68,20 @@ namespace FactoryDelivery.Core
         [Tooltip("가동 페이즈 종료 시 발행")]
         [SerializeField] private VoidEventChannelSO _onOperationEnded;
 
-        // ─────────────────────────────────────────────
+        // =========================================================================
         //  Runtime State
-        // ─────────────────────────────────────────────
+        // =========================================================================
 
         private int _currentDay = 1;
         private DayPhase _currentPhase;
         private float _timeScale = 1f;
         private bool _isPaused;
         private float _operationTimer;
+        private float _operationElapsed;
+        private float _permanentNightTimeBonus;
+        private float _todayNightTimeBonus;
+        private DayPeriod _currentPeriod = DayPeriod.Day;
+        private bool _initialWarehousePlaced;
 
         /// <summary>배급된 블록 인스턴스들.</summary>
         private List<BlockInstance> _currentBlocks;
@@ -68,9 +89,9 @@ namespace FactoryDelivery.Core
         /// <summary>현재 순차 배치 중인 블록의 인덱스.</summary>
         private int _placementIndex;
 
-        // ─────────────────────────────────────────────
+        // =========================================================================
         //  Properties
-        // ─────────────────────────────────────────────
+        // =========================================================================
 
         /// <summary>현재 일차.</summary>
         public int CurrentDay => _currentDay;
@@ -88,14 +109,32 @@ namespace FactoryDelivery.Core
         public float OperationTimer => _operationTimer;
 
         /// <summary>가동 페이즈 전체 시간.</summary>
-        public float OperationTimeLimit => _operationTimeLimit;
+        public float OperationTimeLimit => _operationTimeLimit + _permanentNightTimeBonus + _todayNightTimeBonus;
+
+        public float DayTimeLimit => _operationTimeLimit;
+
+        public float OperationElapsed => _operationElapsed;
+
+        public float NightTimeLimit => _permanentNightTimeBonus + _todayNightTimeBonus;
+
+        public DayPeriod CurrentPeriod => _currentPeriod;
+
+        public bool IsNight => _currentPhase == DayPhase.Operation && _currentPeriod == DayPeriod.Night;
+
+        public float RemainingDayTime => Mathf.Max(0f, _operationTimeLimit - _operationElapsed);
+
+        public float RemainingNightTime => IsNight ? _operationTimer : Mathf.Max(0f, OperationTimeLimit - _operationTimeLimit);
+
+        public float WorkerSpeedMultiplier => IsNight ? _nightWorkerSpeedMultiplier : _dayWorkerSpeedMultiplier;
+
+        public float ProcessingSpeedMultiplier => IsNight ? _nightProcessingSpeedMultiplier : _dayProcessingSpeedMultiplier;
 
         /// <summary>현재 배급된 블록 목록.</summary>
         public IReadOnlyList<BlockInstance> DistributedBlocks => _currentBlocks;
 
-        // ─────────────────────────────────────────────
+        // =========================================================================
         //  Events
-        // ─────────────────────────────────────────────
+        // =========================================================================
 
         /// <summary>페이즈가 전환될 때 발생. 페이로드는 새 페이즈.</summary>
         public event Action<DayPhase> OnPhaseChanged;
@@ -106,9 +145,11 @@ namespace FactoryDelivery.Core
         /// <summary>블록이 배급되었을 때 발생.</summary>
         public event Action<List<BlockInstance>> OnBlocksDistributed;
 
-        // ─────────────────────────────────────────────
+        public event Action<DayPeriod> OnDayPeriodChanged;
+
+        // =========================================================================
         //  Unity Lifecycle & PoC Debug Controls
-        // ─────────────────────────────────────────────
+        // =========================================================================
 
         private void Start()
         {
@@ -132,6 +173,9 @@ namespace FactoryDelivery.Core
             if (_currentPhase == DayPhase.Operation && !_isPaused)
             {
                 _operationTimer -= Time.deltaTime;
+                _operationElapsed += Time.deltaTime;
+                RefreshDayPeriod();
+
                 if (_operationTimer <= 0f)
                 {
                     _operationTimer = 0f;
@@ -171,9 +215,9 @@ namespace FactoryDelivery.Core
             _placementIndex++;
         }
 
-        // ─────────────────────────────────────────────
+        // =========================================================================
         //  Phase Flow
-        // ─────────────────────────────────────────────
+        // =========================================================================
 
         /// <summary>
         /// 새로운 Day를 시작한다. 가동 페이즈로 바로 진입한다.
@@ -219,9 +263,9 @@ namespace FactoryDelivery.Core
             StartDay();
         }
 
-        // ─────────────────────────────────────────────
+        // =========================================================================
         //  Time Control (가동 페이즈)
-        // ─────────────────────────────────────────────
+        // =========================================================================
 
         /// <summary>
         /// 가동 페이즈의 배속을 설정한다.
@@ -250,9 +294,44 @@ namespace FactoryDelivery.Core
             Debug.Log($"[DayManager] {(_isPaused ? "일시 정지" : $"재개 (x{_timeScale})")}");
         }
 
-        // ─────────────────────────────────────────────
+        public void AddNightTime(float seconds, bool permanent)
+        {
+            if (seconds <= 0f)
+            {
+                return;
+            }
+
+            if (permanent)
+            {
+                _permanentNightTimeBonus += seconds;
+            }
+            else
+            {
+                _todayNightTimeBonus += seconds;
+            }
+
+            if (_currentPhase == DayPhase.Operation)
+            {
+                _operationTimer += seconds;
+                RefreshDayPeriod();
+            }
+        }
+
+        public void SetDayNightMultipliers(
+            float dayWorker,
+            float nightWorker,
+            float dayProcessing,
+            float nightProcessing)
+        {
+            _dayWorkerSpeedMultiplier = Mathf.Max(0.01f, dayWorker);
+            _nightWorkerSpeedMultiplier = Mathf.Max(0.01f, nightWorker);
+            _dayProcessingSpeedMultiplier = Mathf.Max(0.01f, dayProcessing);
+            _nightProcessingSpeedMultiplier = Mathf.Max(0.01f, nightProcessing);
+        }
+
+        // =========================================================================
         //  Phase Implementations
-        // ─────────────────────────────────────────────
+        // =========================================================================
 
         /// <summary>
         /// 가동 페이즈: 시간이 흐르고 일꾼이 이동한다. 제한 시간이 존재하며 일시정지 상태로 시작.
@@ -264,7 +343,10 @@ namespace FactoryDelivery.Core
             // 초기 상태는 일시정지
             _isPaused = true;
             Time.timeScale = 0f;
-            _operationTimer = _operationTimeLimit;
+            _todayNightTimeBonus = 0f;
+            _operationElapsed = 0f;
+            _operationTimer = OperationTimeLimit;
+            _currentPeriod = DayPeriod.Day;
 
             _placementIndex = 0; // 배치 인덱스 초기화
 
@@ -274,10 +356,20 @@ namespace FactoryDelivery.Core
                 _quotaManager.StartNewDay(_currentDay);
             }
 
+            TributeManager tributeManager = _tributeManager != null
+                ? _tributeManager
+                : GameManager.Instance != null ? GameManager.Instance.Tribute : FindFirstObjectByType<TributeManager>();
+            if (tributeManager != null)
+            {
+                tributeManager.StartNewDay(_currentDay);
+            }
+
+            EnsureInitialWarehouse();
+
             // 블록 배급
             if (_blockFactory != null)
             {
-                _currentBlocks = _blockFactory.GenerateBlocksForDay(Constants.BlocksPerDay, _currentDay == 1);
+                _currentBlocks = _blockFactory.GenerateBlocksForDay(Constants.BlocksPerDay, false);
                 OnBlocksDistributed?.Invoke(_currentBlocks);
                 Debug.Log($"[DayManager] 블록 {_currentBlocks.Count}개 배급 완료.");
             }
@@ -349,6 +441,55 @@ namespace FactoryDelivery.Core
             }
         }
 
+        private void EnsureInitialWarehouse()
+        {
+            if (_initialWarehousePlaced || _currentDay != 1 || _blockFactory == null)
+            {
+                return;
+            }
+
+            GridManager gridManager = _gridManager != null ? _gridManager : FindFirstObjectByType<GridManager>();
+            if (gridManager == null)
+            {
+                Debug.LogWarning("[DayManager] 중앙 창고를 배치할 GridManager를 찾지 못했습니다.");
+                return;
+            }
+
+            TileDataSO warehouseTile = _blockFactory.WarehouseTileData;
+            if (warehouseTile == null)
+            {
+                Debug.LogWarning("[DayManager] 중앙 창고 배치에 사용할 창고 타일 데이터가 없습니다.");
+                return;
+            }
+
+            int warehouseSize = 2;
+            int start = Mathf.FloorToInt((Constants.LandPlotSize - warehouseSize) * 0.5f);
+            Vector2Int origin = new Vector2Int(start, start);
+            bool placedAny = false;
+
+            for (int x = 0; x < warehouseSize; x++)
+            {
+                for (int y = 0; y < warehouseSize; y++)
+                {
+                    Vector2Int pos = origin + new Vector2Int(x, y);
+                    if (gridManager.GetTileAt(pos) != null)
+                    {
+                        continue;
+                    }
+
+                    if (gridManager.TryPlaceTile(pos, warehouseTile, out _))
+                    {
+                        placedAny = true;
+                    }
+                }
+            }
+
+            _initialWarehousePlaced = true;
+            Debug.Log(placedAny
+                ? "[DayManager] 시작 중앙 2x2 창고를 자동 배치했습니다."
+                : "[DayManager] 중앙 창고 위치가 이미 점유되어 있어 추가 배치하지 않았습니다.");
+        }
+
         // ─────────────────────────────────────────────
         //  Internal
         // ─────────────────────────────────────────────
@@ -365,6 +506,22 @@ namespace FactoryDelivery.Core
 
             _onPhaseChanged?.RaiseEvent();
             OnPhaseChanged?.Invoke(newPhase);
+        }
+
+        private void RefreshDayPeriod()
+        {
+            DayPeriod nextPeriod = _operationElapsed >= _operationTimeLimit
+                ? DayPeriod.Night
+                : DayPeriod.Day;
+
+            if (_currentPeriod == nextPeriod)
+            {
+                return;
+            }
+
+            _currentPeriod = nextPeriod;
+            OnDayPeriodChanged?.Invoke(_currentPeriod);
+            Debug.Log($"[DayManager] 시간대 전환: {_currentPeriod}");
         }
     }
 }

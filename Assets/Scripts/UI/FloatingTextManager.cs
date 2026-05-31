@@ -12,11 +12,11 @@ namespace FactoryDelivery.UI
     /// </summary>
     public class FloatingTextManager : MonoBehaviour
     {
-        [Header("Event Channels")]
+        [Header("이벤트 채널")]
         [Tooltip("자원이 판매되어 수입이 발생할 때 수신하는 채널")]
         [SerializeField] private IntEventChannelSO _onResourceSoldChannel;
 
-        [Header("Floating Text Setup")]
+        [Header("플로팅 텍스트 설정")]
         [SerializeField] private FloatingText _textPrefab;
         [SerializeField] private Color _goldColor = new Color(1.0f, 0.84f, 0f); // 조선 황실 엽전 골드 컬러
 
@@ -45,7 +45,7 @@ namespace FactoryDelivery.UI
         {
             // 씬의 물류 창고 또는 배달 완료 지점의 위치를 찾아서 스폰
             // 만약 찾지 못하면 맵의 중심 근처인 (15, 15, 0)에서 스폰 폴백
-            Vector3 spawnPos = new Vector3(15f, 15f, -0.5f); // 2D 씬 오더링을 위해 Z축 약간 앞으로
+            Vector3 spawnPos = new Vector3(15f, 15f, -0.5f); // 2D 씬 오더링을 위해 Z축 약간 앞에 배치
 
             var warehouse = FindFirstObjectByType<FactoryDelivery.Facility.Warehouse>();
             if (warehouse != null)
@@ -63,6 +63,9 @@ namespace FactoryDelivery.UI
             ft.Setup($"+{value} 엽전", _goldColor);
         }
 
+        /// <summary>
+        /// 풀에서 플로팅 텍스트 객체를 가져옵니다. 없으면 새로 생성합니다.
+        /// </summary>
         private FloatingText GetText()
         {
             if (_pool.Count > 0)
@@ -100,6 +103,9 @@ namespace FactoryDelivery.UI
             ft.Setup(text, color);
         }
 
+        /// <summary>
+        /// 지정된 월드 좌표에 커스텀 텍스트, 색상, 지속 시간의 플로팅 텍스트를 띄웁니다.
+        /// </summary>
         public void ShowText(Vector3 position, string text, Color color, float duration)
         {
             FloatingText ft = GetText();
@@ -107,6 +113,9 @@ namespace FactoryDelivery.UI
             ft.Setup(text, color, duration);
         }
 
+        /// <summary>
+        /// 사용이 끝난 플로팅 텍스트를 풀로 반환합니다.
+        /// </summary>
         public void ReturnText(FloatingText text)
         {
             if (!_pool.Contains(text))

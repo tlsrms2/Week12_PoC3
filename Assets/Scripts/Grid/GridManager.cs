@@ -4,74 +4,78 @@ using UnityEngine;
 using FactoryDelivery.Data;
 using FactoryDelivery.Events;
 using FactoryDelivery.Utils;
+using FactoryDelivery.Core;
 using TMPro;
 
 namespace FactoryDelivery.Grid
 {
     /// <summary>
-    /// Manages the runtime state of the game grid.
-    /// The grid is a fixed <see cref="Constants.GridWidth"/> × <see cref="Constants.GridHeight"/>
-    /// array of <see cref="TileEntity"/> slots.
+    /// 게임 그리드의 런타임 상태를 관리합니다.
+    /// 그리드는 고정된 <see cref="Constants.GridWidth"/> × <see cref="Constants.GridHeight"/>
+    /// 크기의 <see cref="TileEntity"/> 슬롯 배열입니다.
     /// <para>
-    /// This MonoBehaviour is designed to be wired via the Inspector (serialized-field singleton)
-    /// rather than using a static <c>Instance</c> accessor.
+    /// 이 MonoBehaviour는 정적 <c>Instance</c> 접근자 대신 인스펙터를 통해 연결(직렬화 필드 싱글톤)되도록 설계되었습니다.
     /// </para>
     /// </summary>
     public class GridManager : MonoBehaviour
     {
         // ─────────────────────────────────────────────
-        //  Serialized Fields
+        //  직렬화 필드
         // ─────────────────────────────────────────────
 
-        [Header("Visuals (PoC Setup)")]
+        [Header("비주얼 (PoC 설정)")]
         [SerializeField]
         [Tooltip("타일을 시각적으로 나타낼 SpriteRenderer 프리팹 (지정하지 않으면 런타임에 자동 생성)")]
         private SpriteRenderer _tileVisualPrefab;
 
         private readonly Dictionary<Vector2Int, SpriteRenderer> _tileVisuals = new Dictionary<Vector2Int, SpriteRenderer>();
 
-        [Header("Event Channels")]
+        [Header("이벤트 채널")]
 
-        /// <summary>SO channel raised whenever a new tile is placed on the grid.</summary>
+        /// <summary>그리드에 새 타일이 배치될 때마다 발생하는 SO 채널입니다.</summary>
         [SerializeField]
-        [Tooltip("Raised when a tile is placed.")]
+        [Tooltip("타일이 배치될 때 발생합니다.")]
         private VoidEventChannelSO _onTilePlacedChannel;
 
-        /// <summary>SO channel raised whenever a tile is removed from the grid.</summary>
+        /// <summary>그리드에서 타일이 제거될 때마다 발생하는 SO 채널입니다.</summary>
         [SerializeField]
-        [Tooltip("Raised when a tile is removed.")]
+        [Tooltip("타일이 제거될 때 발생합니다.")]
         private VoidEventChannelSO _onTileRemovedChannel;
 
-        /// <summary>SO channel raised whenever an existing tile is leveled up.</summary>
+        /// <summary>기존 타일의 레벨이 올라갈 때마다 발생하는 SO 채널입니다.</summary>
         [SerializeField]
-        [Tooltip("Raised when a tile is leveled up.")]
+        [Tooltip("타일이 레벨업될 때 발생합니다.")]
         private VoidEventChannelSO _onTileLeveledUpChannel;
 
         // ─────────────────────────────────────────────
-        //  C# Events (for direct subscribers)
+        //  C# 이벤트 (직접 구독자용)
         // ─────────────────────────────────────────────
 
-        /// <summary>Fired after a tile has been successfully placed. Payload is the new entity.</summary>
+        /// <summary>타일이 성공적으로 배치된 후 발생합니다. 페이로드는 새 엔티티입니다.</summary>
         public event Action<TileEntity> OnTilePlaced;
 
-        /// <summary>Fired after a tile has been removed. Payload is the position that was cleared.</summary>
+        /// <summary>타일이 제거된 후 발생합니다. 페이로드는 제거된 위치입니다.</summary>
         public event Action<Vector2Int> OnTileRemoved;
 
-        /// <summary>Fired after a tile has been leveled up. Payload is the leveled entity.</summary>
+        /// <summary>타일의 레벨이 올라간 후 발생합니다. 페이로드는 레벨업된 엔티티입니다.</summary>
         public event Action<TileEntity> OnTileLeveledUp;
 
         // ─────────────────────────────────────────────
-        //  Runtime State
+        //  런타임 상태
         // ─────────────────────────────────────────────
 
-        private TileEntity[,] _grid;
-        private TileEntity[,] _roadGrid;
+        private readonly Dictionary<Vector2Int, TileEntity> _grid = new Dictionary<Vector2Int, TileEntity>();
+        private readonly Dictionary<Vector2Int, TileEntity> _roadGrid = new Dictionary<Vector2Int, TileEntity>();
+        private readonly HashSet<Vector2Int> _ownedPlots = new HashSet<Vector2Int>();
+        private readonly Dictionary<Vector2Int, GameObject> _plotButtons = new Dictionary<Vector2Int, GameObject>();
+        private Transform _gridBackgroundContainer;
+        private Sprite _gridCellSprite;
 
-        /// <summary>Whether the grid has been initialized.</summary>
-        public bool IsInitialized => _grid != null && _roadGrid != null;
+        /// <summary>그리드가 초기화되었는지 여부입니다.</summary>
+        public bool IsInitialized => _ownedPlots.Count > 0;
 
         // ─────────────────────────────────────────────
-        //  Initialization
+        //  초기화
         // ─────────────────────────────────────────────
 
         private void Awake()
@@ -83,32 +87,34 @@ namespace FactoryDelivery.Grid
         }
 
         /// <summary>
-        /// Creates a fresh, empty grid of size
-        /// <see cref="Constants.GridWidth"/> × <see cref="Constants.GridHeight"/>.
-        /// This should be called once during scene setup.
+        /// <see cref="Constants.GridWidth"/> × <see cref="Constants.GridHeight"/> 크기의
+        /// 새로운 빈 그리드를 생성합니다. 씬 설정 중에 한 번 호출해야 합니다.
         /// </summary>
         public void Initialize()
         {
-            _grid = new TileEntity[Constants.GridWidth, Constants.GridHeight];
-            _roadGrid = new TileEntity[Constants.GridWidth, Constants.GridHeight];
+            _grid.Clear();
+            _roadGrid.Clear();
+            _ownedPlots.Clear();
+            _plotButtons.Clear();
             
             // 바둑판 모양의 2D 그리드 격자 시각화판 자동 생성
-            CreateGridBackground();
+            CreateGridBackground(Vector2Int.zero);
+            RefreshPurchaseButtons();
 
             // 씬의 메인 카메라를 찾아 그리드 정중앙으로 자동 정렬 및 제어기 부착
             Camera cam = Camera.main;
             if (cam != null)
             {
                 // 셀 크기와 격자 수 기준 완벽한 월드 정중앙 좌표
-                float centerX = Constants.GridWidth * Constants.CellSize * 0.5f;
-                float centerY = Constants.GridHeight * Constants.CellSize * 0.5f;
+                float centerX = Constants.LandPlotSize * Constants.CellSize * 0.5f;
+                float centerY = Constants.LandPlotSize * Constants.CellSize * 0.5f;
 
                 // 우측 인벤토리 대시보드 UI 공간을 배려하여, 그리드가 화면 좌측 중앙에 시각적으로 예쁘게 정렬되도록 카메라를 우측으로 약간 편향시킴
-                float visualOffsetX = Constants.GridWidth * Constants.CellSize * 0.12f;
+                float visualOffsetX = Constants.LandPlotSize * Constants.CellSize * 0.12f;
                 cam.transform.position = new Vector3(centerX + visualOffsetX, centerY, -10f);
 
                 // 그리드 전체가 시야에 한 눈에 들어오도록 줌 크기(Orthographic Size) 동적 맞춤
-                cam.orthographicSize = Mathf.Max(Constants.GridWidth, Constants.GridHeight) * Constants.CellSize * 0.5f + 1f;
+                cam.orthographicSize = Constants.LandPlotSize * Constants.CellSize * 0.5f + 1f;
 
                 // 마우스 우클릭 드래그 카메라 Panning 제어 컴포넌트 자동 증설
                 if (!cam.gameObject.TryGetComponent<FactoryDelivery.Utils.CameraDragPan>(out _))
@@ -117,32 +123,42 @@ namespace FactoryDelivery.Grid
                 }
             }
             
-            Debug.Log($"[GridManager] Grid initialized ({Constants.GridWidth}x{Constants.GridHeight}) with dual-layer overlay slots.");
+            Debug.Log($"[GridManager] 그리드 초기화 완료 ({Constants.GridWidth}x{Constants.GridHeight}). 듀얼 레이어 슬롯이 준비되었습니다.");
         }
 
         /// <summary>
         /// 30x30 바둑판 그리드 격자 라인을 화면에 미려하게 렌더링하기 위한 바닥 타일판을 자동 스폰한다.
         /// Scale 0.95f 기법을 사용하여 이웃 타일 사이의 틈새로 아름다운 검은 격자선이 노출되도록 한다.
         /// </summary>
-        private void CreateGridBackground()
+        private void CreateGridBackground(Vector2Int plotOrigin)
         {
-            GameObject container = new GameObject("[GridBackgroundContainer]");
-            container.transform.parent = transform;
+            if (_gridBackgroundContainer == null)
+            {
+                GameObject container = new GameObject("[GridBackgroundContainer]");
+                container.transform.parent = transform;
+                _gridBackgroundContainer = container.transform;
+            }
 
             // 런타임에 확실한 1x1 흰색 텍스처를 픽셀 단위 1f(1픽셀 = 1유닛) 스프라이트로 동적 생성하여 버그 원천 차단
-            Texture2D whiteTex = new Texture2D(1, 1);
-            whiteTex.SetPixel(0, 0, Color.white);
-            whiteTex.Apply();
-            Sprite gridCellSprite = Sprite.Create(whiteTex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1f);
-
-            for (int x = 0; x < Constants.GridWidth; x++)
+            if (_gridCellSprite == null)
             {
-                for (int y = 0; y < Constants.GridHeight; y++)
+                Texture2D whiteTex = new Texture2D(1, 1);
+                whiteTex.SetPixel(0, 0, Color.white);
+                whiteTex.Apply();
+                _gridCellSprite = Sprite.Create(whiteTex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1f);
+            }
+            Sprite gridCellSprite = _gridCellSprite;
+
+            _ownedPlots.Add(plotOrigin);
+
+            for (int x = 0; x < Constants.LandPlotSize; x++)
+            {
+                for (int y = 0; y < Constants.LandPlotSize; y++)
                 {
-                    Vector2Int pos = new Vector2Int(x, y);
-                    GameObject cellGo = new GameObject($"Cell_{x}_{y}");
+                    Vector2Int pos = plotOrigin + new Vector2Int(x, y);
+                    GameObject cellGo = new GameObject($"Cell_{pos.x}_{pos.y}");
                     cellGo.transform.position = pos.ToWorldPosition();
-                    cellGo.transform.parent = container.transform;
+                    cellGo.transform.parent = _gridBackgroundContainer;
                     
                     // 정렬과 z축 깊이를 고정하여 타일 뒤쪽에 확실히 배치
                     Vector3 localPos = cellGo.transform.localPosition;
@@ -163,21 +179,20 @@ namespace FactoryDelivery.Grid
         }
 
         // ─────────────────────────────────────────────
-        //  Placement
+        //  배치
         // ─────────────────────────────────────────────
 
         /// <summary>
-        /// Attempts to place a tile at the given position.
-        /// If the cell already contains a tile of the <b>same type</b> that has not reached
-        /// its maximum level, the existing tile is leveled up instead.
+        /// 지정된 위치에 타일 배치를 시도합니다.
+        /// 해당 셀에 이미 최대 레벨에 도달하지 않은 <b>동일한 타입</b>의 타일이 있는 경우, 
+        /// 대신 기존 타일의 레벨을 올립니다.
         /// </summary>
-        /// <param name="pos">Grid coordinates.</param>
-        /// <param name="tileData">The tile data to place.</param>
+        /// <param name="pos">그리드 좌표입니다.</param>
+        /// <param name="tileData">배치할 타일 데이터입니다.</param>
         /// <param name="entity">
-        /// On success, the newly created or leveled-up <see cref="TileEntity"/>.
-        /// <c>null</c> on failure.
+        /// 성공 시 새로 생성되거나 레벨업된 <see cref="TileEntity"/>입니다. 실패 시 <c>null</c>입니다.
         /// </param>
-        /// <returns><c>true</c> if the operation succeeded; otherwise <c>false</c>.</returns>
+        /// <returns>작업에 성공하면 <c>true</c>, 그렇지 않으면 <c>false</c>를 반환합니다.</returns>
         public bool TryPlaceTile(Vector2Int pos, TileDataSO tileData, out TileEntity entity, Vector2Int? roadDirection = null)
         {
             entity = null;
@@ -185,7 +200,7 @@ namespace FactoryDelivery.Grid
             if (!IsInBounds(pos) || tileData == null) return false;
 
             bool isRoad = tileData.Type == TileType.Road;
-            TileEntity existing = isRoad ? _roadGrid[pos.x, pos.y] : _grid[pos.x, pos.y];
+            TileEntity existing = isRoad ? GetRoadEntity(pos) : GetGridEntity(pos);
 
             // 도로의 경우 중복 설치(겹치기/레벨업)가 절대 불가합니다.
             if (isRoad && existing != null)
@@ -193,7 +208,7 @@ namespace FactoryDelivery.Grid
                 return false;
             }
 
-            // Level-up and direction-override path
+            // 레벨업 및 방향 재설정 경로
             if (existing != null)
             {
                 if (existing.Data == tileData)
@@ -244,19 +259,19 @@ namespace FactoryDelivery.Grid
                     return true;
                 }
 
-                // Occupied by a different type → fail.
+                // 다른 타입에 의해 점유됨 → 실패
                 return false;
             }
 
-            // New placement path
+            // 새 배치 경로
             entity = new TileEntity(tileData, pos);
             if (isRoad)
             {
-                _roadGrid[pos.x, pos.y] = entity;
+                _roadGrid[pos] = entity;
             }
             else
             {
-                _grid[pos.x, pos.y] = entity;
+                _grid[pos] = entity;
             }
 
             // 비주얼 인스턴스화
@@ -282,23 +297,23 @@ namespace FactoryDelivery.Grid
         }
 
         /// <summary>
-        /// Removes the tile at the given position, if one exists.
+        /// 지정된 위치에 타일이 있으면 제거합니다.
         /// </summary>
-        /// <param name="pos">Grid coordinates.</param>
-        /// <returns><c>true</c> if a tile was removed; <c>false</c> if the cell was already empty or out of bounds.</returns>
+        /// <param name="pos">그리드 좌표입니다.</param>
+        /// <returns>타일이 제거되면 <c>true</c>, 셀이 이미 비어 있거나 범위를 벗어난 경우 <c>false</c>를 반환합니다.</returns>
         public bool RemoveTile(Vector2Int pos)
         {
             if (!IsInBounds(pos)) return false;
 
-            bool hasGridTile = _grid[pos.x, pos.y] != null;
-            bool hasRoadTile = _roadGrid[pos.x, pos.y] != null;
+            bool hasGridTile = GetGridEntity(pos) != null;
+            bool hasRoadTile = GetRoadEntity(pos) != null;
 
             if (!hasGridTile && !hasRoadTile) return false;
 
             bool wasRoad = hasRoadTile;
 
-            _grid[pos.x, pos.y] = null;
-            _roadGrid[pos.x, pos.y] = null;
+            _grid.Remove(pos);
+            _roadGrid.Remove(pos);
 
             // 월드 공간상에서 해당 위치를 점유하던 모든 타일 비주얼 스프라이트들을 정밀 탐색하여 격리 제거
             var children = GetComponentsInChildren<SpriteRenderer>();
@@ -342,19 +357,66 @@ namespace FactoryDelivery.Grid
         }
 
         // ─────────────────────────────────────────────
-        //  Queries
+        //  쿼리
         // ─────────────────────────────────────────────
 
         /// <summary>
-        /// Returns the <see cref="TileEntity"/> at the given grid position, or <c>null</c>
-        /// if the cell is empty or out of bounds.
+        /// 지정한 그리드 좌표에 존재하는 도로 타일을 제거한다.
         /// </summary>
-        /// <param name="pos">Grid coordinates.</param>
-        /// <returns>The tile entity, or <c>null</c>.</returns>
+        public bool RemoveRoadTile(Vector2Int pos)
+        {
+            if (!IsInBounds(pos)) return false;
+            if (GetRoadEntity(pos) == null) return false;
+
+            _roadGrid.Remove(pos);
+
+            var children = GetComponentsInChildren<SpriteRenderer>();
+            foreach (var sr in children)
+            {
+                if (sr == null || sr.gameObject == null) continue;
+                if (!sr.gameObject.name.Contains($"_{pos.x}_{pos.y}")) continue;
+
+                var road = sr.GetComponent<FactoryDelivery.Logistics.RoadTile>();
+                if (road != null && road.GridPosition == pos)
+                {
+                    sr.gameObject.SetActive(false);
+                    Destroy(sr.gameObject);
+                }
+            }
+
+            if (_tileVisuals.TryGetValue(pos, out SpriteRenderer cachedSr))
+            {
+                if (cachedSr != null && cachedSr.GetComponent<FactoryDelivery.Logistics.RoadTile>() != null)
+                {
+                    cachedSr.gameObject.SetActive(false);
+                    Destroy(cachedSr.gameObject);
+                    _tileVisuals.Remove(pos);
+                }
+            }
+
+            RebuildRoadNetwork();
+            _onTileRemovedChannel?.RaiseEvent();
+            OnTileRemoved?.Invoke(pos);
+
+            var houses = FindObjectsByType<FactoryDelivery.Facility.WorkerHouse>(FindObjectsSortMode.None);
+            foreach (var house in houses)
+            {
+                if (house != null) house.RefreshAoE();
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 지정한 그리드 위치에 있는 <see cref="TileEntity"/>를 반환하거나, 
+        /// 셀이 비어 있거나 범위를 벗어난 경우 <c>null</c>을 반환합니다.
+        /// </summary>
+        /// <param name="pos">그리드 좌표입니다.</param>
+        /// <returns>타일 엔티티 또는 <c>null</c>입니다.</returns>
         public TileEntity GetTileAt(Vector2Int pos)
         {
             if (!IsInBounds(pos)) return null;
-            return _grid[pos.x, pos.y];
+            return GetGridEntity(pos);
         }
 
         /// <summary>
@@ -363,45 +425,161 @@ namespace FactoryDelivery.Grid
         public TileEntity GetRoadTileAt(Vector2Int pos)
         {
             if (!IsInBounds(pos)) return null;
-            return _roadGrid[pos.x, pos.y];
+            return GetRoadEntity(pos);
         }
 
         /// <summary>
-        /// Checks whether the given position falls within the grid boundaries.
+        /// 지정한 위치가 그리드 경계 내에 있는지 확인합니다.
         /// </summary>
-        /// <param name="pos">Grid coordinates to check.</param>
-        /// <returns><c>true</c> if <paramref name="pos"/> is inside the grid.</returns>
+        /// <param name="pos">확인할 그리드 좌표입니다.</param>
+        /// <returns><paramref name="pos"/>가 그리드 내부에 있으면 <c>true</c>입니다.</returns>
         public bool IsInBounds(Vector2Int pos)
         {
-            return pos.x >= 0 && pos.x < Constants.GridWidth
-                && pos.y >= 0 && pos.y < Constants.GridHeight;
+            return IsPlotOwned(GetPlotOrigin(pos));
+        }
+
+        public bool TryPurchasePlot(Vector2Int plotOrigin)
+        {
+            if (IsPlotOwned(plotOrigin)) return false;
+
+            QuotaManager quotaManager = FindFirstObjectByType<QuotaManager>();
+            if (quotaManager != null && !quotaManager.TrySpendProgress(Constants.LandPurchaseCost))
+            {
+                return false;
+            }
+
+            CreateGridBackground(plotOrigin);
+
+            if (_plotButtons.TryGetValue(plotOrigin, out GameObject buttonGo) && buttonGo != null)
+            {
+                Destroy(buttonGo);
+            }
+            _plotButtons.Remove(plotOrigin);
+
+            RefreshPurchaseButtons();
+            return true;
+        }
+
+        private TileEntity GetGridEntity(Vector2Int pos)
+        {
+            _grid.TryGetValue(pos, out TileEntity entity);
+            return entity;
+        }
+
+        private TileEntity GetRoadEntity(Vector2Int pos)
+        {
+            _roadGrid.TryGetValue(pos, out TileEntity entity);
+            return entity;
+        }
+
+        private Vector2Int GetPlotOrigin(Vector2Int pos)
+        {
+            int size = Constants.LandPlotSize;
+            return new Vector2Int(Mathf.FloorToInt((float)pos.x / size) * size, Mathf.FloorToInt((float)pos.y / size) * size);
+        }
+
+        private bool IsPlotOwned(Vector2Int plotOrigin)
+        {
+            return _ownedPlots.Contains(plotOrigin);
+        }
+
+        private void RefreshPurchaseButtons()
+        {
+            Vector2Int[] directions =
+            {
+                new Vector2Int(1, 0),
+                new Vector2Int(-1, 0),
+                new Vector2Int(0, 1),
+                new Vector2Int(0, -1),
+                new Vector2Int(1, 1),
+                new Vector2Int(1, -1),
+                new Vector2Int(-1, 1),
+                new Vector2Int(-1, -1)
+            };
+
+            var candidates = new HashSet<Vector2Int>();
+            int size = Constants.LandPlotSize;
+            foreach (Vector2Int owned in _ownedPlots)
+            {
+                foreach (Vector2Int direction in directions)
+                {
+                    Vector2Int candidate = owned + direction * size;
+                    if (!IsPlotOwned(candidate))
+                    {
+                        candidates.Add(candidate);
+                    }
+                }
+            }
+
+            foreach (Vector2Int origin in candidates)
+            {
+                if (!_plotButtons.ContainsKey(origin))
+                {
+                    _plotButtons[origin] = CreatePurchaseButton(origin);
+                }
+            }
+        }
+
+        private GameObject CreatePurchaseButton(Vector2Int plotOrigin)
+        {
+            GameObject buttonGo = new GameObject($"LandPurchaseButton_{plotOrigin.x}_{plotOrigin.y}");
+            buttonGo.transform.parent = transform;
+            buttonGo.transform.position = (plotOrigin + new Vector2Int(Constants.LandPlotSize / 2, Constants.LandPlotSize / 2)).ToWorldPosition();
+
+            var background = buttonGo.AddComponent<SpriteRenderer>();
+            background.sprite = _gridCellSprite;
+            background.color = new Color(0.15f, 0.12f, 0.08f, 0.92f);
+            background.sortingOrder = 80;
+            background.transform.localScale = new Vector3(3.8f, 1.6f, 1f);
+
+            var collider = buttonGo.AddComponent<BoxCollider2D>();
+            collider.size = new Vector2(3.8f, 1.6f);
+
+            var purchaseButton = buttonGo.AddComponent<LandPurchaseButton>();
+            purchaseButton.Initialize(this, plotOrigin);
+
+            GameObject labelGo = new GameObject("Label");
+            labelGo.transform.parent = buttonGo.transform;
+            labelGo.transform.localPosition = new Vector3(0f, 0f, -0.2f);
+
+            var label = labelGo.AddComponent<TextMeshPro>();
+            label.alignment = TextAlignmentOptions.Center;
+            label.fontSize = 2.6f;
+            label.color = new Color(1f, 0.86f, 0.25f, 1f);
+            label.text = $"부지 구매\n{Constants.LandPurchaseCost} 엽전";
+
+            var labelRenderer = labelGo.GetComponent<MeshRenderer>();
+            if (labelRenderer != null)
+            {
+                labelRenderer.sortingOrder = 81;
+            }
+
+            return buttonGo;
         }
 
         /// <summary>
-        /// Returns <c>true</c> if the cell at <paramref name="pos"/> is within bounds
-        /// and currently unoccupied.
+        /// <paramref name="pos"/> 위치의 셀이 그리드 범위 내에 있고 현재 비어 있는 경우 <c>true</c>를 반환합니다.
         /// </summary>
-        /// <param name="pos">Grid coordinates.</param>
-        /// <returns><c>true</c> if the cell is empty.</returns>
+        /// <param name="pos">그리드 좌표입니다.</param>
+        /// <returns>셀이 비어 있으면 <c>true</c>입니다.</returns>
         public bool IsEmpty(Vector2Int pos)
         {
-            return IsInBounds(pos) && _grid[pos.x, pos.y] == null;
+            return IsInBounds(pos) && GetGridEntity(pos) == null;
         }
 
         /// <summary>
-        /// Determines whether a tile can be placed at the given position,
-        /// either as a new placement (cell is empty) or as a level-up
-        /// (same type and not at max level).
+        /// 해당 위치에 새 타일을 배치(셀이 비어 있음)하거나 
+        /// 레벨업(동일한 타입이고 최대 레벨이 아님)할 수 있는지 확인합니다.
         /// </summary>
-        /// <param name="pos">Grid coordinates.</param>
-        /// <param name="tileData">The tile data to evaluate.</param>
-        /// <returns><c>true</c> if placement or level-up is valid.</returns>
+        /// <param name="pos">그리드 좌표입니다.</param>
+        /// <param name="tileData">평가할 타일 데이터입니다.</param>
+        /// <returns>배치 또는 레벨업이 유효하면 <c>true</c>입니다.</returns>
         public bool CanPlaceOrLevelUp(Vector2Int pos, TileDataSO tileData)
         {
             if (!IsInBounds(pos) || tileData == null) return false;
 
             bool isRoad = tileData.Type == TileType.Road;
-            TileEntity existing = isRoad ? _roadGrid[pos.x, pos.y] : _grid[pos.x, pos.y];
+            TileEntity existing = isRoad ? GetRoadEntity(pos) : GetGridEntity(pos);
 
             // 도로는 겹칠 수 없는 예외 타일이므로, 이미 도로 격자에 도로가 존재하면 절대 설치 불가
             if (isRoad && existing != null) return false;
@@ -414,34 +592,35 @@ namespace FactoryDelivery.Grid
         }
 
         /// <summary>
-        /// Collects all tiles whose grid position lies within <paramref name="radius"/>
-        /// cells of <paramref name="center"/> (Euclidean distance).
-        /// Useful for WorkerHouse area-of-effect calculations.
+        /// <paramref name="center"/>에서 <paramref name="radius"/> 셀 이내(유클리드 거리)에 있는 모든 타일을 수집합니다. 
+        /// WorkerHouse의 효과 범위 계산에 유용합니다.
         /// </summary>
-        /// <param name="center">Center grid position.</param>
-        /// <param name="radius">Search radius in cell units.</param>
-        /// <returns>A list of matching tile entities (never <c>null</c>).</returns>
+        /// <param name="center">그리드 중심 위치입니다.</param>
+        /// <param name="radius">셀 단위의 검색 반경입니다.</param>
+        /// <returns>일치하는 타일 엔티티 목록입니다(절대 <c>null</c>이 아님).</returns>
         public List<TileEntity> GetTilesInRadius(Vector2Int center, float radius)
         {
             var results = new List<TileEntity>();
             float radiusSqr = radius * radius;
 
-            int minX = Mathf.Max(0, Mathf.FloorToInt(center.x - radius));
-            int maxX = Mathf.Min(Constants.GridWidth - 1, Mathf.CeilToInt(center.x + radius));
-            int minY = Mathf.Max(0, Mathf.FloorToInt(center.y - radius));
-            int maxY = Mathf.Min(Constants.GridHeight - 1, Mathf.CeilToInt(center.y + radius));
+            int minX = Mathf.FloorToInt(center.x - radius);
+            int maxX = Mathf.CeilToInt(center.x + radius);
+            int minY = Mathf.FloorToInt(center.y - radius);
+            int maxY = Mathf.CeilToInt(center.y + radius);
 
             for (int x = minX; x <= maxX; x++)
             {
                 for (int y = minY; y <= maxY; y++)
                 {
-                    if (_grid[x, y] == null) continue;
+                    Vector2Int pos = new Vector2Int(x, y);
+                    TileEntity tile = GetGridEntity(pos);
+                    if (tile == null) continue;
 
                     float dx = x - center.x;
                     float dy = y - center.y;
                     if (dx * dx + dy * dy <= radiusSqr)
                     {
-                        results.Add(_grid[x, y]);
+                        results.Add(tile);
                     }
                 }
             }
@@ -450,23 +629,19 @@ namespace FactoryDelivery.Grid
         }
 
         /// <summary>
-        /// Returns all tiles on the grid that match the specified <see cref="TileType"/>.
+        /// 그리드에서 지정된 <see cref="TileType"/>과 일치하는 모든 타일을 반환합니다.
         /// </summary>
-        /// <param name="type">The tile type to filter by.</param>
-        /// <returns>A list of matching tile entities (never <c>null</c>).</returns>
+        /// <param name="type">필터링할 타일 타입입니다.</param>
+        /// <returns>일치하는 타일 엔티티 목록입니다(절대 <c>null</c>이 아님).</returns>
         public List<TileEntity> GetAllTilesOfType(TileType type)
         {
             var results = new List<TileEntity>();
 
-            for (int x = 0; x < Constants.GridWidth; x++)
+            foreach (TileEntity tile in _grid.Values)
             {
-                for (int y = 0; y < Constants.GridHeight; y++)
+                if (tile != null && tile.Data != null && tile.Data.Type == type)
                 {
-                    TileEntity tile = _grid[x, y];
-                    if (tile != null && tile.Data != null && tile.Data.Type == type)
-                    {
-                        results.Add(tile);
-                    }
+                    results.Add(tile);
                 }
             }
 
@@ -639,7 +814,7 @@ namespace FactoryDelivery.Grid
 
         private Color GetTileVisualColor(TileEntity entity)
         {
-            if (entity != null && entity.IsRoad && _grid[entity.GridPosition.x, entity.GridPosition.y] != null)
+            if (entity != null && entity.IsRoad && GetGridEntity(entity.GridPosition) != null)
             {
                 return new Color(1f, 1f, 1f, 0.22f);
             }
@@ -714,7 +889,7 @@ namespace FactoryDelivery.Grid
 
             // 1차: 기본 정의된 Direction 기반 연결망 구축
             EstablishBasicConnections(allRoads);
-            ApplyRoadEndpointLabels(allRoads);
+            ApplyRoadEndpointLabelsForSegments(allRoads);
 
             // 2차: 스마트 오토-커브 연쇄 보정 비활성화 (플레이어가 의도하여 수동 배치한 방향 설정을 100% 최우선 존중하기 위해 제외합니다.)
 
@@ -736,7 +911,7 @@ namespace FactoryDelivery.Grid
 
             foreach (var road in allRoads)
             {
-                if (road == null || road.PreviousRoad != null || visited.Contains(road)) continue;
+                if (road == null || !road.gameObject.activeInHierarchy || road.PreviousRoad != null || visited.Contains(road)) continue;
 
                 FactoryDelivery.Logistics.RoadTile current = road;
                 FactoryDelivery.Logistics.RoadTile end = road;
@@ -751,6 +926,39 @@ namespace FactoryDelivery.Grid
                 road.SetEndpointLabel("출발", new Color(0.2f, 1.0f, 1.0f, 0.95f));
                 if (end != road)
                 {
+                    end.SetEndpointLabel("도착", new Color(0.2f, 1.0f, 0.2f, 0.95f));
+                }
+            }
+        }
+
+        private static void ApplyRoadEndpointLabelsForSegments(FactoryDelivery.Logistics.RoadTile[] allRoads)
+        {
+            var visited = new HashSet<FactoryDelivery.Logistics.RoadTile>();
+
+            foreach (var road in allRoads)
+            {
+                if (road == null || !road.gameObject.activeInHierarchy || road.PreviousRoad != null || visited.Contains(road))
+                {
+                    continue;
+                }
+
+                FactoryDelivery.Logistics.RoadTile current = road;
+                FactoryDelivery.Logistics.RoadTile end = road;
+                int guard = 0;
+
+                while (current != null && current.gameObject.activeInHierarchy && visited.Add(current) && guard++ < 4096)
+                {
+                    end = current;
+                    current = current.NextRoad;
+                }
+
+                if (end == road)
+                {
+                    road.SetEndpointLabel("출발/도착", new Color(0.2f, 1.0f, 0.7f, 0.95f));
+                }
+                else
+                {
+                    road.SetEndpointLabel("출발", new Color(0.2f, 1.0f, 1.0f, 0.95f));
                     end.SetEndpointLabel("도착", new Color(0.2f, 1.0f, 0.2f, 0.95f));
                 }
             }
@@ -795,6 +1003,24 @@ namespace FactoryDelivery.Grid
             }
 
             return false;
+        }
+    }
+
+    public class LandPurchaseButton : MonoBehaviour
+    {
+        private GridManager _gridManager;
+        private Vector2Int _plotOrigin;
+
+        public void Initialize(GridManager gridManager, Vector2Int plotOrigin)
+        {
+            _gridManager = gridManager;
+            _plotOrigin = plotOrigin;
+        }
+
+        private void OnMouseDown()
+        {
+            if (_gridManager == null) return;
+            _gridManager.TryPurchasePlot(_plotOrigin);
         }
     }
 }

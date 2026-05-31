@@ -29,6 +29,9 @@ namespace FactoryDelivery.Core
         [Tooltip("정산 시 할당량 미달일 경우 발행")]
         [SerializeField] private VoidEventChannelSO _onQuotaFailed;
 
+        [Header("판매 계산")]
+        [SerializeField] private SaleModifierManager _saleModifierManager;
+
         // ─────────────────────────────────────────────
         //  Runtime State
         // ─────────────────────────────────────────────
@@ -70,6 +73,8 @@ namespace FactoryDelivery.Core
         /// </summary>
         public event Action<int> OnWalletBalanceChanged;
 
+        public event Action<ResourceDataSO, int, int> OnResourceSoldDetailed;
+
         // ─────────────────────────────────────────────
         //  Unity Lifecycle
         // ─────────────────────────────────────────────
@@ -109,10 +114,10 @@ namespace FactoryDelivery.Core
 
             if (dayNumber == 1)
             {
-                _walletBalance = 200; // 200 starting gold on Day 1!
+                _walletBalance = 200; // 1일차 시작 시 기본 엽전 200 제공
             }
 
-            Debug.Log($"[QuotaManager] Day {dayNumber} 할당량: {_currentQuota}");
+            Debug.Log($"[QuotaManager] {dayNumber}일차 할당량: {_currentQuota}");
 
             OnQuotaProgressChanged?.Invoke(_currentProgress, _currentQuota);
             OnWalletBalanceChanged?.Invoke(_walletBalance);
@@ -149,7 +154,7 @@ namespace FactoryDelivery.Core
         private void OnResourceSold(int value)
         {
             _currentProgress += value;
-            _walletBalance += value; // Earn gold on sale
+            _walletBalance += value; // 판매 수익을 지갑에 추가
 
             OnQuotaProgressChanged?.Invoke(_currentProgress, _currentQuota);
             OnWalletBalanceChanged?.Invoke(_walletBalance);
@@ -172,7 +177,8 @@ namespace FactoryDelivery.Core
         {
             if (resource == null || amount <= 0) return;
 
-            int totalValue = resource.BaseValue * amount;
+            SaleResult saleResult = CalculateSale(resource, amount);
+            int totalValue = saleResult.TotalValue;
             if (_onResourceSoldChannel != null)
             {
                 _onResourceSoldChannel.RaiseEvent(totalValue);
@@ -192,7 +198,38 @@ namespace FactoryDelivery.Core
                     Debug.Log($"[QuotaManager] 할당량 달성! ({_currentProgress}/{_currentQuota})");
                 }
             }
+            OnResourceSoldDetailed?.Invoke(resource, amount, totalValue);
             Debug.Log($"[QuotaManager] {resource.DisplayName} {amount}개 판매 완료. 가치: {totalValue} 엽전");
+        }
+
+        public SaleResult PreviewSale(ResourceDataSO resource, int amount)
+        {
+            return CalculateSale(resource, amount);
+        }
+
+        private SaleResult CalculateSale(ResourceDataSO resource, int amount)
+        {
+            if (_saleModifierManager == null)
+            {
+                _saleModifierManager = GameManager.Instance != null
+                    ? GameManager.Instance.SaleModifiers
+                    : FindFirstObjectByType<SaleModifierManager>();
+            }
+
+            var context = new SaleContext(
+                resource,
+                amount,
+                GameManager.Instance != null ? GameManager.Instance.Day : FindFirstObjectByType<DayManager>(),
+                GameManager.Instance != null ? GameManager.Instance.Tribute : FindFirstObjectByType<TributeManager>());
+
+            if (_saleModifierManager != null)
+            {
+                return _saleModifierManager.CalculateSale(context);
+            }
+
+            int baseUnitValue = resource != null ? resource.BaseValue : 0;
+            int safeAmount = Mathf.Max(0, amount);
+            return new SaleResult(baseUnitValue, baseUnitValue, baseUnitValue * safeAmount, Array.Empty<string>());
         }
 
         /// <summary>
@@ -208,6 +245,19 @@ namespace FactoryDelivery.Core
             OnWalletBalanceChanged?.Invoke(_walletBalance);
             Debug.Log($"[QuotaManager] 엽전 {amount} 소모 완료. (잔액: {_walletBalance})");
             return true;
+        }
+
+        /// <summary>
+        /// 지갑 잔액을 추가한다. (주로 환불 처리 시 사용)
+        /// </summary>
+        /// <param name="amount">추가할 엽전의 양.</param>
+        public void AddWalletBalance(int amount)
+        {
+            if (amount <= 0) return;
+
+            _walletBalance += amount;
+            OnWalletBalanceChanged?.Invoke(_walletBalance);
+            Debug.Log($"[QuotaManager] 엽전 {amount} 환불 완료. (잔액: {_walletBalance})");
         }
     }
 }

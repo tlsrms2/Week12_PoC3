@@ -27,7 +27,7 @@ namespace FactoryDelivery.Block
 {
     /// <summary>
     /// 런타임에 동적으로 형태 및 구성이 결정된 블록 인스턴스.
-    /// Tracks current rotation and provides rotated cell access.
+    /// 현재 회전을 추적하고 회전된 셀 접근을 제공합니다.
     /// </summary>
     [Serializable]
     public class BlockInstance
@@ -39,7 +39,7 @@ namespace FactoryDelivery.Block
         public List<BlockCell> Cells { get; set; } = new List<BlockCell>();
 
         /// <summary>
-        /// Current rotation index (0 = 0°, 1 = 90°, 2 = 180°, 3 = 270°).
+        /// 현재 회전 인덱스 (0 = 0°, 1 = 90°, 2 = 180°, 3 = 270°).
         /// </summary>
         public int CurrentRotation { get; private set; }
 
@@ -53,10 +53,9 @@ namespace FactoryDelivery.Block
         }
 
         /// <summary>
-        /// Returns the list of <see cref="BlockCell"/> positions after applying
-        /// the current rotation.
+        /// 현재 회전을 적용한 후의 <see cref="BlockCell"/> 위치 목록을 반환합니다.
         /// </summary>
-        /// <returns>Rotated cell list (new allocation per call).</returns>
+        /// <returns>회전된 셀 목록 (호출 시마다 새로 할당됨).</returns>
         public List<BlockCell> GetCurrentCells()
         {
             int normalizedRotation = ((CurrentRotation % 4) + 4) % 4;
@@ -100,7 +99,7 @@ namespace FactoryDelivery.Block
         }
 
         /// <summary>
-        /// Advances the rotation by 90° clockwise, cycling 0 → 1 → 2 → 3 → 0.
+        /// 시계 방향으로 90° 회전시키며, 0 → 1 → 2 → 3 → 0 순으로 순환합니다.
         /// </summary>
         public void Rotate()
         {
@@ -142,6 +141,8 @@ namespace FactoryDelivery.Block
 
         [Tooltip("물류 창고 타일 에셋 (일일 공급 forceWarehouse 강제 주입 보증용)")]
         [SerializeField] private TileDataSO _warehouseTileData;
+
+        public TileDataSO WarehouseTileData => GetWarehouseTileData();
 
         /// <summary>
         /// 런타임에 형태, 크기, 타일을 전격 랜덤으로 조합하여 팩토리 블록들을 일일 지급합니다.
@@ -212,18 +213,12 @@ namespace FactoryDelivery.Block
                             }
                             else
                             {
-                                selectedTile = GetRandomTileFromPool(_facilityTilePool);
+                                selectedTile = GetRandomTileFromPool(_facilityTilePool, false);
                             }
                         }
                         else
                         {
-                            selectedTile = GetRandomTileFromPool(_facilityTilePool);
-                            if (selectedTile != null && selectedTile.Type == TileType.Facility &&
-                                selectedTile.AssociatedFacility != null &&
-                                selectedTile.AssociatedFacility.Type == FacilityType.Warehouse)
-                            {
-                                warehousePlaced = true;
-                            }
+                            selectedTile = GetRandomTileFromPool(_facilityTilePool, false);
                         }
                     }
 
@@ -266,6 +261,35 @@ namespace FactoryDelivery.Block
             }
 
             return blocks;
+        }
+
+        public BlockInstance CreateWarehouseBlock(int size = 3)
+        {
+            TileDataSO warehouseTile = GetWarehouseTileData();
+            if (warehouseTile == null)
+            {
+                Debug.LogWarning("[BlockFactory] 창고 타일 데이터가 없어 창고 블록을 만들 수 없습니다.");
+                return null;
+            }
+
+            BlockInstance block = new BlockInstance
+            {
+                PatternName = $"{size}x{size} 물류창고 블록"
+            };
+
+            for (int x = 0; x < size; x++)
+            {
+                for (int y = 0; y < size; y++)
+                {
+                    block.Cells.Add(new BlockCell
+                    {
+                        LocalPosition = new Vector2Int(x, y),
+                        TileData = warehouseTile
+                    });
+                }
+            }
+
+            return block;
         }
 
         /// <summary>
@@ -335,13 +359,51 @@ namespace FactoryDelivery.Block
         /// <summary>
         /// 풀에서 확률 보정치를 주기 수월하도록 가중치 추적 연산을 거치는 무작위 타일 데이터 인스턴스 추출 헬퍼 메서드.
         /// </summary>
-        private TileDataSO GetRandomTileFromPool(List<TileDataSO> pool)
+        private TileDataSO GetRandomTileFromPool(List<TileDataSO> pool, bool allowWarehouse = true)
         {
             if (pool == null || pool.Count == 0) return null;
+
+            if (!allowWarehouse)
+            {
+                List<TileDataSO> filteredPool = new List<TileDataSO>();
+                foreach (TileDataSO tile in pool)
+                {
+                    if (tile != null && !IsWarehouseTile(tile))
+                    {
+                        filteredPool.Add(tile);
+                    }
+                }
+
+                pool = filteredPool;
+                if (pool.Count == 0) return null;
+            }
             
             // 추후 가중치 밸런스를 적용하기 쉽도록 구조를 마련함.
             int index = UnityEngine.Random.Range(0, pool.Count);
             return pool[index];
+        }
+
+        private TileDataSO GetWarehouseTileData()
+        {
+            if (_warehouseTileData != null) return _warehouseTileData;
+
+            foreach (TileDataSO tile in _facilityTilePool)
+            {
+                if (IsWarehouseTile(tile))
+                {
+                    return tile;
+                }
+            }
+
+            return null;
+        }
+
+        private bool IsWarehouseTile(TileDataSO tile)
+        {
+            return tile != null
+                && tile.Type == TileType.Facility
+                && tile.AssociatedFacility != null
+                && tile.AssociatedFacility.Type == FacilityType.Warehouse;
         }
 
         private bool ContainsWarehouse(BlockInstance block)
@@ -349,10 +411,7 @@ namespace FactoryDelivery.Block
             if (block == null || block.Cells == null) return false;
             foreach (var cell in block.Cells)
             {
-                if (cell.TileData != null && 
-                    cell.TileData.Type == TileType.Facility && 
-                    cell.TileData.AssociatedFacility != null && 
-                    cell.TileData.AssociatedFacility.Type == FacilityType.Warehouse)
+                if (IsWarehouseTile(cell.TileData))
                 {
                     return true;
                 }

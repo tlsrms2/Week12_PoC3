@@ -13,6 +13,9 @@ MonoBehaviour:
   m_Name: "\uC77C\uAFBC"
   m_EditorClassIdentifier: Assembly-CSharp::FactoryDelivery.Data.WorkerDataSO
   WorkerScale: 2.5
+  SpriteFront: {fileID: 833887005272333192, guid: 768c7860192822e419f127af88b9c28b, type: 3}
+  SpriteBack: {fileID: -9083626075850075339, guid: 9ddc7babb4fdfde4ea3ca2a6c63af6d4, type: 3}
+  SpriteSide: {fileID: -7592364203529158766, guid: 0bf02c6a40c67524c8bf540b729a7f03, type: 3}
   BaseSpeed: 3
   MinDistance: 0.5
   CarryCapacity: 1

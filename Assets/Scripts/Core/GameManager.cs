@@ -25,9 +25,9 @@ namespace FactoryDelivery.Core
     [DefaultExecutionOrder(-9999)]
     public class GameManager : MonoBehaviour
     {
-        // ─────────────────────────────────────────────
-        //  Singleton
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  싱글톤
+        // =========================================================================
 
         private static GameManager _instance;
 
@@ -50,9 +50,9 @@ namespace FactoryDelivery.Core
             }
         }
 
-        // ─────────────────────────────────────────────
-        //  Inspector
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  인스펙터
+        // =========================================================================
 
         [Header("글로벌 설정")]
         [Tooltip("상수 설정을 관리하는 ScriptableObject")]
@@ -65,6 +65,15 @@ namespace FactoryDelivery.Core
         [Tooltip("할당량 관리자")]
         [SerializeField] private QuotaManager _quotaManager;
 
+        [Tooltip("진상품/총애 관리자")]
+        [SerializeField] private TributeManager _tributeManager;
+
+        [Tooltip("총애 상점 관리자")]
+        [SerializeField] private FavorShopManager _favorShopManager;
+
+        [Tooltip("판매 계산/보정 관리자")]
+        [SerializeField] private SaleModifierManager _saleModifierManager;
+
         [Header("이벤트 채널")]
         [Tooltip("게임 시작 시 발행")]
         [SerializeField] private VoidEventChannelSO _onGameStarted;
@@ -72,16 +81,17 @@ namespace FactoryDelivery.Core
         [Tooltip("게임 오버 시 발행")]
         [SerializeField] private VoidEventChannelSO _onGameOver;
 
-        // ─────────────────────────────────────────────
-        //  Runtime State
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  런타임 상태
+        // =========================================================================
 
         private GameState _currentState = GameState.MainMenu;
         private readonly ResourceInventory _inventory = new ResourceInventory();
+        private readonly GiftInventory _giftInventory = new GiftInventory();
 
-        // ─────────────────────────────────────────────
-        //  Properties
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  프로퍼티
+        // =========================================================================
 
         /// <summary>현재 게임 상태.</summary>
         public GameState CurrentState => _currentState;
@@ -89,16 +99,26 @@ namespace FactoryDelivery.Core
         /// <summary>플레이어의 글로벌 자원 인벤토리.</summary>
         public ResourceInventory Inventory => _inventory;
 
-        // ─────────────────────────────────────────────
-        //  Events
-        // ─────────────────────────────────────────────
+        public GiftInventory Gifts => _giftInventory;
+
+        public DayManager Day => _dayManager;
+
+        public TributeManager Tribute => _tributeManager;
+
+        public FavorShopManager FavorShop => _favorShopManager;
+
+        public SaleModifierManager SaleModifiers => _saleModifierManager;
+
+        // =========================================================================
+        //  이벤트
+        // =========================================================================
 
         /// <summary>게임 상태가 전환될 때 발생.</summary>
         public event Action<GameState> OnGameStateChanged;
 
-        // ─────────────────────────────────────────────
-        //  Unity Lifecycle
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  유니티 생명주기
+        // =========================================================================
 
         private void Awake()
         {
@@ -117,6 +137,33 @@ namespace FactoryDelivery.Core
 
             _instance = this;
             DontDestroyOnLoad(gameObject);
+
+            if (_tributeManager == null)
+            {
+                _tributeManager = GetComponent<TributeManager>();
+                if (_tributeManager == null)
+                {
+                    _tributeManager = gameObject.AddComponent<TributeManager>();
+                }
+            }
+
+            if (_favorShopManager == null)
+            {
+                _favorShopManager = GetComponent<FavorShopManager>();
+                if (_favorShopManager == null)
+                {
+                    _favorShopManager = gameObject.AddComponent<FavorShopManager>();
+                }
+            }
+
+            if (_saleModifierManager == null)
+            {
+                _saleModifierManager = GetComponent<SaleModifierManager>();
+                if (_saleModifierManager == null)
+                {
+                    _saleModifierManager = gameObject.AddComponent<SaleModifierManager>();
+                }
+            }
         }
 
         private void Start()
@@ -125,9 +172,9 @@ namespace FactoryDelivery.Core
             StartNewGame();
         }
 
-        // ─────────────────────────────────────────────
-        //  Public API
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  공개 API
+        // =========================================================================
 
         /// <summary>
         /// 새 게임을 시작한다.
@@ -136,6 +183,7 @@ namespace FactoryDelivery.Core
         public void StartNewGame()
         {
             _inventory.Clear();
+            _giftInventory.Clear();
             TransitionTo(GameState.InGame);
 
             _onGameStarted?.RaiseEvent();
@@ -173,9 +221,9 @@ namespace FactoryDelivery.Core
             Debug.Log("[GameManager] 메인 메뉴로 복귀.");
         }
 
-        // ─────────────────────────────────────────────
-        //  Internal
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  내부 로직
+        // =========================================================================
 
         /// <summary>
         /// 게임 상태를 전환하고 이벤트를 발행한다.

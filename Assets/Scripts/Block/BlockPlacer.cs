@@ -13,60 +13,60 @@ using TMPro;
 namespace FactoryDelivery.Block
 {
     /// <summary>
-    /// Handles player interaction for placing <see cref="BlockInstance"/>s onto the grid.
-    /// Provides a real-time preview (green = valid, red = invalid) that follows
-    /// the mouse cursor, with rotation and cancellation support.
+    /// <see cref="BlockInstance"/>를 그리드에 배치하는 플레이어 상호작용을 처리합니다.
+    /// 마우스 커서를 따라다니는 실시간 프리뷰(초록 = 유효, 빨강 = 무효)를 제공하며,
+    /// 회전 및 취소를 지원합니다.
     /// </summary>
     public class BlockPlacer : MonoBehaviour
     {
-        // ─────────────────────────────────────────────
-        //  Serialized Fields
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  직렬화 필드
+        // =========================================================================
 
-        /// <summary>Reference to the scene's grid manager.</summary>
-        [Header("References")]
+        /// <summary>씬의 그리드 매니저 참조입니다.</summary>
+        [Header("참조")]
         [SerializeField]
-        [Tooltip("The grid manager used for placement validation.")]
+        [Tooltip("배치 유효성 검사에 사용되는 그리드 매니저입니다.")]
         private GridManager _gridManager;
 
-        /// <summary>Camera used for screen-to-world raycasting.</summary>
+        /// <summary>스크린-투-월드 레이캐스팅에 사용되는 카메라입니다.</summary>
         [SerializeField]
-        [Tooltip("Main camera. Falls back to Camera.main if not assigned.")]
+        [Tooltip("메인 카메라입니다. 할당되지 않은 경우 Camera.main으로 대체됩니다.")]
         private Camera _camera;
 
-        /// <summary>Prefab used to display a single preview cell.</summary>
-        [Header("Preview")]
+        /// <summary>단일 프리뷰 셀을 표시하는 데 사용되는 프리팹입니다.</summary>
+        [Header("프리뷰")]
         [SerializeField]
-        [Tooltip("SpriteRenderer prefab instantiated for each preview cell.")]
+        [Tooltip("각 프리뷰 셀에 대해 생성되는 SpriteRenderer 프리팹입니다.")]
         private SpriteRenderer _previewTilePrefab;
 
-        /// <summary>Color applied to preview tiles when placement is valid.</summary>
+        /// <summary>배치가 유효할 때 프리뷰 타일에 적용되는 색상입니다.</summary>
         [SerializeField]
-        [Tooltip("Preview tint when placement is valid.")]
+        [Tooltip("배치가 유효할 때의 프리뷰 색조입니다.")]
         private Color _validColor = new Color(0f, 1f, 0f, 0.5f);
 
-        /// <summary>Color applied to preview tiles when placement is invalid.</summary>
+        /// <summary>배치가 유효하지 않을 때 프리뷰 타일에 적용되는 색상입니다.</summary>
         [SerializeField]
-        [Tooltip("Preview tint when placement is invalid.")]
+        [Tooltip("배치가 유효하지 않을 때의 프리뷰 색조입니다.")]
         private Color _invalidColor = new Color(1f, 0f, 0f, 0.5f);
 
         [Header("도로 설정")]
-        [Tooltip("자유 도로 건설 시 사용될 도로 타일 데이터 에셋")]
+        [Tooltip("자유 도로 건설 시 사용되는 도로 타일 데이터 에셋")]
         [SerializeField] private TileDataSO _roadTileData;
 
-        // ─────────────────────────────────────────────
-        //  Events
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  이벤트
+        // =========================================================================
 
-        /// <summary>Fired after a block has been successfully placed on the grid.</summary>
+        /// <summary>블록이 그리드에 성공적으로 배치된 후 발생합니다.</summary>
         public event Action<BlockInstance> OnBlockPlaced;
 
-        /// <summary>Fired when the player cancels the current placement.</summary>
+        /// <summary>플레이어가 현재 배치를 취소할 때 발생합니다.</summary>
         public event Action OnPlacementCancelled;
 
-        // ─────────────────────────────────────────────
-        //  Runtime State
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  런타임 상태
+        // =========================================================================
 
         private BlockInstance _currentBlock;
         private Vector2Int _previewPosition;
@@ -78,29 +78,29 @@ namespace FactoryDelivery.Block
         private int _roadCost = 5;
         private Vector2Int _currentRoadDirection = Vector2Int.up;
 
-        // Satisfactory-style Road Placement State
+        // Satisfactory 스타일의 도로 배치 상태
         private bool _hasStartPoint;
         private Vector2Int _startGridPosition;
         private List<Vector2Int> _currentRoadPath = new List<Vector2Int>();
 
-        // ─────────────────────────────────────────────
-        //  Public API
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  공개 API
+        // =========================================================================
 
         /// <summary>
-        /// Begins placement mode for the given block.
-        /// Preview sprites are spawned and will follow the cursor.
+        /// 지정된 블록에 대한 배치 모드를 시작합니다.
+        /// 프리뷰 스프라이트가 생성되어 커서를 따라다닙니다.
         /// </summary>
-        /// <param name="block">The block instance to place.</param>
+        /// <param name="block">배치할 블록 인스턴스입니다.</param>
         public void StartPlacing(BlockInstance block)
         {
             if (block == null)
             {
-                Debug.LogWarning("[BlockPlacer] StartPlacing called with a null block.");
+                Debug.LogWarning("[BlockPlacer] StartPlacing이 null 블록으로 호출되었습니다.");
                 return;
             }
 
-            CancelPlacing(); // clean up any previous session
+            CancelPlacing(); // 이전 세션 정리
 
             _currentBlock = block;
             _isPlacing = true;
@@ -109,11 +109,11 @@ namespace FactoryDelivery.Block
         }
 
         /// <summary>
-        /// Begins road placement mode.
+        /// 도로 배치 모드를 시작합니다.
         /// </summary>
         public void StartRoadBuilding(TileDataSO roadTile, int cost = 5)
         {
-            CancelPlacing(); // clean up any previous session
+            CancelPlacing(); // 이전 세션 정리
 
             _roadTileData = roadTile;
             _roadCost = cost;
@@ -135,7 +135,7 @@ namespace FactoryDelivery.Block
         }
 
         /// <summary>
-        /// Cancels the current placement mode and cleans up preview visuals.
+        /// 현재 배치 모드를 취소하고 프리뷰 비주얼을 정리합니다.
         /// </summary>
         public void CancelPlacing()
         {
@@ -151,12 +151,12 @@ namespace FactoryDelivery.Block
             OnPlacementCancelled?.Invoke();
         }
 
-        /// <summary>Whether the placer is currently in placement mode.</summary>
+        /// <summary>배치기가 현재 배치 모드인지 여부입니다.</summary>
         public bool IsPlacing => _isPlacing;
 
-        // ─────────────────────────────────────────────
+        // =========================================================================
         //  MonoBehaviour
-        // ─────────────────────────────────────────────
+        // =========================================================================
 
         private void Awake()
         {
@@ -168,23 +168,23 @@ namespace FactoryDelivery.Block
 
         private void Update()
         {
-            // B key to toggle Road Building Mode
+            // B 키로 도로 건설 모드 토글
             if (Keyboard.current != null && Keyboard.current.bKey.wasPressedThisFrame)
             {
                 if (_isBuildingRoad)
                 {
                     CancelPlacing();
-                    Debug.Log("[BlockPlacer] 도로 자유 포장 모드가 해제되었습니다.");
+                    Debug.Log("[BlockPlacer] 도로 자유 확장 모드가 해제되었습니다.");
                 }
                 else
                 {
-                    // 블록 카드가 덱에 남아있거나 심지어 손에 쥐어져 있더라도 즉시 작업을 취소하고 
-                    // 도로 자유 포장 모드를 묻지도 따지지도 않고 바로 켜 줍니다!
+                    // 블록 카드가 손에 들어있거나 드래그 중인 상태더라도 즉시 작업을 취소하고 
+                    // 도로 자유 확장 모드로 묻지도 따지지도 않고 바로 바꿉니다.
                     TileDataSO roadTile = FindRoadTileData();
                     if (roadTile != null)
                     {
                         StartRoadBuilding(roadTile, 5);
-                        Debug.Log("[BlockPlacer] 도로 자유 포장 모드 진입 (비용: 5 엽전 / 취소: ESC 또는 마우스 우클릭 / 단축키: B)");
+                        Debug.Log("[BlockPlacer] 도로 자유 확장 모드 진입 (비용: 5 엽전 / 취소: ESC 또는 마우스 우클릭 / 단축키: B)");
                     }
                     else
                     {
@@ -195,65 +195,42 @@ namespace FactoryDelivery.Block
 
             if (!_isPlacing || _currentBlock == null)
             {
-                // If not placing anything, clicking on a road tile sets the start position!
-                if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
-                {
-                    Vector2Int clickedGridPos = GetGridPositionUnderMouse();
-                    if (_gridManager.IsInBounds(clickedGridPos))
-                    {
-                        var roadTile = GetRoadTileComponentAt(clickedGridPos);
-                        if (roadTile != null)
-                        {
-                            PropagateRoadDirections(roadTile);
-                            Debug.Log($"[BlockPlacer] 클릭된 도로 타일 {clickedGridPos}를 시작점으로 설정하고 방향을 전파합니다.");
-                        }
-                    }
-
-                }
                 return;
             }
 
             UpdatePreviewPosition();
             UpdatePreviewVisuals();
 
-            // Click to place (자유 도로 포장 모드일 때만 마우스 좌클릭 즉각 건설 허용)
-            // 일반 카드는 드래그를 마친 후 PointerUp 떼기 순간에만 CardUI에 의해 건설이 수행되므로 오폭 충돌 완전 방지!
+            // 클릭하여 배치 (도로 자유 확장 모드에서만 마우스 좌클릭 즉각 건설 허용)
+            // 일반 카드는 드래그를 마친 후 PointerUp 대기 시간에만 CardUI를 통해 건설을 수행하므로 대폭 충돌 사전 방지!
             if (_isBuildingRoad && Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
             {
                 OnClick();
             }
 
-            // Cancel (Escape or Right click)
-            if ((Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) ||
-                (Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame))
+            if (!_isBuildingRoad && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
             {
-                if (_isBuildingRoad && _hasStartPoint)
-                {
-                    _hasStartPoint = false;
-                    _currentRoadPath.Clear();
-                    CreatePreviewSprites(1); // Reset preview to a single cell
-                    UpdatePreviewVisuals();
-                    Debug.Log("[BlockPlacer] 도로 시작 지점 선택이 취소되었습니다.");
-                }
-                else
-                {
-                    CancelPlacing();
-                }
+                CancelPlacing();
             }
 
-            // Rotate (R key) - rotate block or cycle road direction
+            if (_isBuildingRoad && Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame)
+            {
+                TryRemoveRoadUnderMouse();
+            }
+
+            // 회전 (R 키) - 블록 회전 또는 도로 방향 순환
             if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
             {
                 if (_isBuildingRoad)
                 {
-                    // 도로 배치 방향 시계방향 순환 회전
+                    // 도로 배치 방향 시계방향 전환 회전
                     if (_currentRoadDirection == Vector2Int.up) _currentRoadDirection = Vector2Int.right;
                     else if (_currentRoadDirection == Vector2Int.right) _currentRoadDirection = Vector2Int.down;
                     else if (_currentRoadDirection == Vector2Int.down) _currentRoadDirection = Vector2Int.left;
                     else if (_currentRoadDirection == Vector2Int.left) _currentRoadDirection = Vector2Int.up;
 
                     UpdatePreviewVisuals();
-                    Debug.Log($"[BlockPlacer] 도로 포장 방향 변경: {_currentRoadDirection}");
+                    Debug.Log($"[BlockPlacer] 도로 확장 방향 변경: {_currentRoadDirection}");
                 }
                 else
                 {
@@ -262,12 +239,12 @@ namespace FactoryDelivery.Block
             }
         }
 
-        // ─────────────────────────────────────────────
-        //  Input Handlers
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  입력 핸들러
+        // =========================================================================
 
         /// <summary>
-        /// Attempts to place the current block at the preview position.
+        /// 현재 블록을 프리뷰 위치에 배치하려고 시도합니다.
         /// </summary>
         private void OnClick()
         {
@@ -280,7 +257,7 @@ namespace FactoryDelivery.Block
                         var warningTextMgr = FindFirstObjectByType<FloatingTextManager>();
                         if (warningTextMgr != null)
                         {
-                            warningTextMgr.ShowText(_previewPosition.ToWorldPosition() + new Vector3(0f, 0.5f, -0.5f), "끝점에서만 연결", Color.red, 2.5f);
+                            warningTextMgr.ShowText(_previewPosition.ToWorldPosition() + new Vector3(0f, 0.5f, -0.5f), "도로를 겹칠 수 없습니다", Color.red, 2.5f);
                         }
                         return;
                     }
@@ -303,7 +280,7 @@ namespace FactoryDelivery.Block
                     var quotaMgr = FindFirstObjectByType<QuotaManager>();
                     if (quotaMgr != null)
                     {
-                        // 이미 도로가 놓인 타일은 건설 비용 계산 및 새 타일 생성 대상에서 제외합니다!
+                        // 기존 도로가 아닌 곳만 건설 비용 계산 및 가이드라인 형성 대상에서 제외됩니다.
                         List<Vector2Int> tilesToPlace = new List<Vector2Int>();
                         foreach (var pos in _currentRoadPath)
                         {
@@ -331,17 +308,17 @@ namespace FactoryDelivery.Block
                                     dir = Vector2Int.zero;
                                 }
 
-                                // 이미 도로가 있는 곳은 새로 배치하지 않고, 필요에 따라 방향만 업데이트해 줍니다.
+                                // 기존 도로가 있는 곳은 도로 배치를 하지 않고, 필요에 따라 방향만 업데이트해 줍니다.
                                 if (_gridManager.GetRoadTileAt(pos) != null)
                                 {
-                                    if (i != 0)
+                                    if (i != 0 && i != _currentRoadPath.Count - 1)
                                     {
-                                        Debug.LogWarning("[BlockPlacer] Road overlap detected outside the extension start. Placement cancelled.");
+                                        Debug.LogWarning("[BlockPlacer] 연장 시작 지점 외에서 도로 중복이 감지되었습니다. 배치가 취소되었습니다.");
                                         return;
                                     }
 
                                     var existingRoad = GetRoadTileComponentAt(pos);
-                                    if (existingRoad != null)
+                                    if (existingRoad != null && i == 0)
                                     {
                                         existingRoad.Direction = dir;
                                     }
@@ -351,7 +328,7 @@ namespace FactoryDelivery.Block
                                 _gridManager.TryPlaceTile(pos, _roadTileData, out _, dir);
                             }
 
-                            Debug.Log($"[BlockPlacer] 도로망 {tilesToPlace.Count}개 일괄 배치 완료 (기존 도로 제외). {totalCost} 엽전 차감.");
+                            Debug.Log($"[BlockPlacer] 도로 {tilesToPlace.Count}개 일괄 배치 완료 (기존 도로 제외). {totalCost} 엽전 차감.");
 
                             // 상태 리셋
                             _hasStartPoint = false;
@@ -366,7 +343,7 @@ namespace FactoryDelivery.Block
 
             List<BlockCell> cells = _currentBlock.GetCurrentCells();
 
-            // Place each cell via the grid manager.
+            // 그리드 매니저를 통해 각 셀을 배치합니다.
             for (int i = 0; i < cells.Count; i++)
             {
                 Vector2Int worldPos = _previewPosition + cells[i].LocalPosition;
@@ -396,7 +373,7 @@ namespace FactoryDelivery.Block
         }
 
         /// <summary>
-        /// Rotates the current block 90° clockwise and refreshes the preview.
+        /// 현재 블록을 시계 방향으로 90도 회전하고 프리뷰를 새로 고칩니다.
         /// </summary>
         private void OnRotate()
         {
@@ -404,12 +381,43 @@ namespace FactoryDelivery.Block
             RefreshPreviewSprites();
         }
 
-        // ─────────────────────────────────────────────
-        //  Preview Helpers
-        // ─────────────────────────────────────────────
+        private void TryRemoveRoadUnderMouse()
+        {
+            Vector2Int targetPos = GetGridPositionUnderMouse();
+            if (_gridManager == null || !_gridManager.IsInBounds(targetPos)) return;
+
+            TileEntity roadEntity = _gridManager.GetRoadTileAt(targetPos);
+            if (roadEntity == null) return;
+
+            if (!_gridManager.RemoveRoadTile(targetPos)) return;
+
+            int refund = Mathf.RoundToInt(_roadCost * 0.5f);
+            QuotaManager quotaMgr = FindFirstObjectByType<QuotaManager>();
+            if (quotaMgr != null)
+            {
+                quotaMgr.AddWalletBalance(refund);
+            }
+
+            var textMgr = FindFirstObjectByType<FloatingTextManager>();
+            if (textMgr != null)
+            {
+                textMgr.ShowText(targetPos.ToWorldPosition() + new Vector3(0f, 0.4f, -0.5f), $"+{refund}", new Color(0.95f, 0.85f, 0.3f), 1.6f);
+            }
+
+            if (_hasStartPoint)
+            {
+                _currentRoadPath = CalculateRoadPath(_startGridPosition, _previewPosition);
+                CreatePreviewSprites(_currentRoadPath.Count);
+                UpdatePreviewVisuals();
+            }
+        }
+
+        // =========================================================================
+        //  프리뷰 헬퍼
+        // =========================================================================
 
         /// <summary>
-        /// Updates <see cref="_previewPosition"/> based on the current mouse/cursor position.
+        /// 현재 마우스/커서 위치를 기반으로 <see cref="_previewPosition"/>을 업데이트합니다.
         /// </summary>
         private void UpdatePreviewPosition()
         {
@@ -421,7 +429,7 @@ namespace FactoryDelivery.Block
 
             Ray ray = _camera.ScreenPointToRay(new Vector3(mouseScreenPos.x, mouseScreenPos.y, 0f));
 
-            // Project onto the XY plane (z = 0).
+            // XY 평면(z = 0)에 투영합니다.
             Plane groundPlane = new Plane(Vector3.forward, Vector3.zero);
             if (groundPlane.Raycast(ray, out float distance))
             {
@@ -434,14 +442,13 @@ namespace FactoryDelivery.Block
         }
 
         /// <summary>
-        /// Moves preview sprites to match the current preview position and
-        /// tints them according to placement validity and tile characteristics.
+        /// 프리뷰 스프라이트를 현재 프리뷰 위치로 이동시키고 배치 유효성 및 타일 특성에 따라 색상을 입힙니다.
         /// </summary>
         private void UpdatePreviewVisuals()
         {
             if (_isBuildingRoad)
             {
-                // 실시간 경로 계산
+                // 임시 경로 계산
                 if (_hasStartPoint)
                 {
                     _currentRoadPath = CalculateRoadPath(_startGridPosition, _previewPosition);
@@ -457,7 +464,7 @@ namespace FactoryDelivery.Block
                     CreatePreviewSprites(_currentRoadPath.Count);
                 }
 
-                // 전체 경로에 대한 건설 가능 상태 검증 (이미 도로가 있는 곳은 제외하고 비용 산정)
+                // 전체 경로에 대한 건설 가능 상태 검사 (기존 도로가 있는 곳은 제외하고 비용 산정)
                 var quotaMgr = FindFirstObjectByType<QuotaManager>();
                 
                 int newRoadsCount = 0;
@@ -486,7 +493,7 @@ namespace FactoryDelivery.Block
                     {
                         Vector2Int pos = _currentRoadPath[pathIndex];
 
-                        // 기존 도로는 단방향 끝점인 첫 칸에서만 새 도로 연결용으로 허용합니다.
+                        // 기존 도로의 전방 종점인 칸에서만 새 도로 연결로 허용합니다.
                         if (_gridManager.GetRoadTileAt(pos) != null)
                         {
                             continue;
@@ -505,7 +512,7 @@ namespace FactoryDelivery.Block
                     Vector2Int worldPos = _currentRoadPath[i];
                     _previewInstances[i].transform.position = worldPos.ToWorldPosition();
 
-                    // 색상 설정 (유효하면 연두색, 부족하거나 막히면 붉은색)
+                    // 색상 설정 (유효하면 연두색, 부족하거나 막히면 빨간색)
                     if (_currentPreviewValid)
                     {
                         _previewInstances[i].color = new Color(0.2f, 0.9f, 0.2f, 0.7f); // 연두색 투명
@@ -515,7 +522,7 @@ namespace FactoryDelivery.Block
                         _previewInstances[i].color = new Color(0.9f, 0.2f, 0.2f, 0.7f); // 빨간색 투명
                     }
 
-                    // [개선] 도로 방향에 따른 실제 직선/커브 스프라이트 및 회전 실시간 반영
+                    // [개선] 도로 방향에 따른 실제 직선/커브 스프라이트 및 회전 표시를 반영
                     if (_roadTileData != null)
                     {
                         Vector2Int incomingDirection = Vector2Int.zero;
@@ -579,7 +586,7 @@ namespace FactoryDelivery.Block
                         }
                     }
 
-                    // 부모 스프라이트가 회전하더라도 텍스트는 정방향(0도)을 유지하도록 보정
+                    // 프리뷰 스프라이트가 회전하더라도 텍스트는 정방향 0도로 유지하도록 보정
                     if (previewText != null)
                     {
                         previewText.transform.rotation = Quaternion.identity;
@@ -589,7 +596,7 @@ namespace FactoryDelivery.Block
                 return;
             }
 
-            // 일반 블록 카드 건설 모드 프리뷰 렌더링
+            // 일반 블록 카드 프리뷰 렌더링
             List<BlockCell> cells = _currentBlock.GetCurrentCells();
             _currentPreviewValid = GridValidator.CanPlaceBlock(_gridManager, cells, _previewPosition);
 
@@ -598,7 +605,7 @@ namespace FactoryDelivery.Block
                 Vector2Int worldPos = _previewPosition + cells[i].LocalPosition;
                 _previewInstances[i].transform.position = worldPos.ToWorldPosition();
 
-                // 일반 카드는 회전이나 반전이 기본적으로 없게 초기화
+                // 일반 카드의 회전이나 반전을 기본적으로 같게 초기화
                 _previewInstances[i].transform.rotation = Quaternion.identity;
                 _previewInstances[i].flipX = false;
 
@@ -615,7 +622,7 @@ namespace FactoryDelivery.Block
                 {
                     Sprite targetSprite = cells[i].TileData.Sprite;
 
-                    // [개선] 이미 타일이 있고 레벨업 가능한 상태라면, 실제 설치될(레벨업 후의) 스프라이트를 반영!
+                    // [개선] 이미 타일이 있고 레벨업 가능한 상태라면, 실제 설치될 레벨의 (현재+1) 스프라이트를 반영!
                     TileEntity existingTile = _gridManager.GetTileAt(worldPos);
                     if (existingTile != null && existingTile.Data == cells[i].TileData && existingTile.CanLevelUp)
                     {
@@ -632,20 +639,20 @@ namespace FactoryDelivery.Block
 
                 _previewInstances[i].transform.localScale = Vector3.one;
 
-                // (일반 카드에 대한 도로 관련 체크 레거시 코드 완전히 삭제됨)
+                // (일반 카드에 대한 도로 관련 체크 제거 코드는 이전 버전 유지)
             }
         }
 
         private TileDataSO FindRoadTileData()
         {
-            // 1. 인스펙터에 직접 등록된 도로 타일 데이터가 있다면 최우선 적용
+            // 1. 인스펙터에 직접 등록된 도로 타일 데이터를 가져와서 최우선 적용
             if (_roadTileData != null) return _roadTileData;
 
-            // 2. Resources 폴더에서 직접 타일 에셋을 탐색하여 초고속 반환
+            // 2. Resources 폴더에서 직접 타일 에셋을 검색하여 최고 속도 반환
             TileDataSO road = Resources.Load<TileDataSO>("Tiles/Tile_Road");
             if (road != null) return road;
 
-            // 3. 차선책으로 씬 내부 및 프로젝트 메모리 상의 도로 타일 캐싱
+            // 3. 차선책으로 프로젝트 내의 메모리 상의 도로 타일 캐싱
             var allTiles = UnityEngine.Resources.FindObjectsOfTypeAll<TileDataSO>();
             if (allTiles != null && allTiles.Length > 0)
             {
@@ -660,7 +667,7 @@ namespace FactoryDelivery.Block
 
             if (_previewTilePrefab == null)
             {
-                Debug.LogWarning("[BlockPlacer] No preview tile prefab assigned.");
+                Debug.LogWarning("[BlockPlacer] 할당된 프리뷰 타일 프리팹이 없습니다.");
                 return;
             }
 
@@ -679,8 +686,8 @@ namespace FactoryDelivery.Block
         }
 
         /// <summary>
-        /// Destroys and re-creates preview sprites.
-        /// Called after rotation changes the cell count/arrangement.
+        /// 프리뷰 스프라이트를 제거하고 다시 생성합니다.
+        /// 회전으로 인해 셀 수나 배치가 변경된 후 호출됩니다.
         /// </summary>
         private void RefreshPreviewSprites()
         {
@@ -688,7 +695,7 @@ namespace FactoryDelivery.Block
         }
 
         /// <summary>
-        /// Destroys all currently active preview sprites.
+        /// 현재 활성화된 모든 프리뷰 스프라이트를 제거합니다.
         /// </summary>
         private void DestroyPreviewSprites()
         {
@@ -787,7 +794,7 @@ namespace FactoryDelivery.Block
                 {
                     if (neighbor == startTile && neighbor != parent)
                     {
-                        startNeighbor = neighbor; // Loop back to start detected
+                        startNeighbor = neighbor; // 시작 지점으로의 루프 감지
                     }
                     if (!visited.Contains(neighbor))
                     {
@@ -867,7 +874,14 @@ namespace FactoryDelivery.Block
                 bool hasRoad = _gridManager.GetRoadTileAt(path[i]) != null;
                 if (!hasRoad) continue;
 
-                if (i != 0 || !IsRoadExtensionStartAllowed(path[i]))
+                bool isStart = i == 0;
+                bool isEnd = i == path.Count - 1;
+                if (!isStart && !isEnd)
+                {
+                    return false;
+                }
+
+                if (isStart && !IsRoadExtensionStartAllowed(path[i]))
                 {
                     return false;
                 }
@@ -916,7 +930,7 @@ namespace FactoryDelivery.Block
                     Vector2Int neighbor = current + d;
                     if (_gridManager.IsInBounds(neighbor) && !visited.Contains(neighbor))
                     {
-                        // Road preview may not overlap existing roads, except for the already-selected start cell.
+                        // 도로 프리뷰는 이미 선택된 시작 셀을 제외하고 기존 도로와 겹칠 수 없습니다.
                         TileEntity existingEntity = _gridManager.GetTileAt(neighbor);
                         bool isResource = existingEntity != null && existingEntity.IsResource;
 
@@ -946,7 +960,7 @@ namespace FactoryDelivery.Block
             }
             else
             {
-                // Fallback to Manhattan path
+                // 맨해튼 경로로 대체
                 path = GetManhattanPath(start, end);
             }
 

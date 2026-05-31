@@ -17,27 +17,29 @@ namespace FactoryDelivery.Facility
     /// </summary>
     public class WorkerHouse : FacilityBase
     {
-        // ─────────────────────────────────────────────
-        //  Runtime State
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  런타임 상태
+        // =========================================================================
 
         /// <summary>현재 레벨 기준 AoE 반경 (캐시).</summary>
         private float _aoERadius;
 
-        /// <summary>현재 레벨 기준 최대 일꾼 수 (캐시).</summary>
         /// <summary>AoE 내에서 활성화된 자원 타일 목록.</summary>
         private readonly List<ResourceTile> _activatedResourceTiles = new List<ResourceTile>();
 
         /// <summary>AoE 내에서 활성화된 시설 목록.</summary>
         private readonly List<FacilityBase> _activatedFacilities = new List<FacilityBase>();
 
+        /// <summary>일꾼 스폰 타이머.</summary>
         private float _spawnTimer;
+        /// <summary>그리드 매니저 참조.</summary>
         private GridManager _gridManager;
+        /// <summary>일꾼 스폰 매니저 참조.</summary>
         private WorkerSpawner _workerSpawner;
 
-        // ─────────────────────────────────────────────
-        //  Properties
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  프로퍼티
+        // =========================================================================
 
         /// <summary>AoE 내에서 활성화된 자원 타일의 읽기 전용 목록.</summary>
         public IReadOnlyList<ResourceTile> ActivatedResourceTiles => _activatedResourceTiles;
@@ -45,9 +47,9 @@ namespace FactoryDelivery.Facility
         /// <summary>AoE 내에서 활성화된 시설의 읽기 전용 목록.</summary>
         public IReadOnlyList<FacilityBase> ActivatedFacilities => _activatedFacilities;
 
-        // ─────────────────────────────────────────────
-        //  Unity Lifecycle
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  유니티 생명주기
+        // =========================================================================
 
         private void Start()
         {
@@ -55,9 +57,9 @@ namespace FactoryDelivery.Facility
             IsActive = true;
         }
 
-        // ─────────────────────────────────────────────
-        //  Public API
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  공개 API
+        // =========================================================================
 
         /// <summary>
         /// 일꾼 숙소를 활성화한다.
@@ -108,7 +110,7 @@ namespace FactoryDelivery.Facility
                 if (facility == this)
                     continue;
 
-                // 다른 WorkerHouse는 자체 활성화하므로 건너뛴다
+                // 다른 WorkerHouse는 자체 활성화하므로 건너뀐다
                 if (facility is WorkerHouse)
                     continue;
 
@@ -144,9 +146,9 @@ namespace FactoryDelivery.Facility
             return int.MaxValue;
         }
 
-        // ─────────────────────────────────────────────
-        //  Processing (No-op)
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  프로세싱 (일꾼 배출)
+        // =========================================================================
 
         /// <summary>
         /// 일꾼 시설은 자체 생산력 주기마다 인접한 진출로 방향으로 일꾼을 배출합니다.
@@ -154,6 +156,11 @@ namespace FactoryDelivery.Facility
         /// <param name="deltaTime">이전 프레임 이후 경과 시간 (초).</param>
         protected override void ProcessTick(float deltaTime)
         {
+            if (_facilityData == null || _facilityData.Type != FacilityType.WorkerHouse)
+            {
+                return;
+            }
+
             if (_gridManager == null)
                 _gridManager = FindAnyObjectByType<GridManager>();
             if (_workerSpawner == null)
@@ -177,15 +184,6 @@ namespace FactoryDelivery.Facility
         {
             // 레벨이 높을수록 일꾼 배출 간격이 단축됩니다.
             return _facilityData != null ? _facilityData.GetWorkerSpawnInterval() : 4f;
-            /*
-            return Level switch
-            {
-                1 => 4.0f,
-                2 => 2.5f,
-                3 => 1.5f,
-                _ => 1.0f
-            };
-            */
         }
 
         private void TrySpawnConveyorWorker()
@@ -215,9 +213,9 @@ namespace FactoryDelivery.Facility
             }
         }
 
-        // ─────────────────────────────────────────────
-        //  Internal Helpers
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  내부 헬퍼
+        // =========================================================================
 
         /// <summary>
         /// 현재 레벨에 맞게 AoE 반경과 최대 일꾼 수를 재계산한다.
@@ -254,9 +252,9 @@ namespace FactoryDelivery.Facility
             _activatedFacilities.Clear();
         }
 
-        // ─────────────────────────────────────────────
-        //  Gizmos (Editor Visualization)
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  기즈모 (에디터 시각화)
+        // =========================================================================
 
         #if UNITY_EDITOR
         private void OnDrawGizmosSelected()

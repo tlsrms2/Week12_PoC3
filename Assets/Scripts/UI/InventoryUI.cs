@@ -16,9 +16,9 @@ namespace FactoryDelivery.UI
     /// </summary>
     public class InventoryUI : MonoBehaviour
     {
-        // ─────────────────────────────────────────────
-        //  Inspector Setup
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  인스펙터 설정
+        // =========================================================================
 
         [Header("UI 참조 연결")]
         [Tooltip("생성될 자원 카드들이 배치될 부모 컨테이너 (예: VerticalLayoutGroup이 있는 Transform)")]
@@ -30,18 +30,19 @@ namespace FactoryDelivery.UI
         [Tooltip("일괄 전체 판매를 담당할 버튼 (연결 시 이벤트 자동 할당됨)")]
         [SerializeField] private Button _globalSellAllButton;
 
-        // ─────────────────────────────────────────────
-        //  Runtime State
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  런타임 상태
+        // =========================================================================
 
         private List<ResourceDataSO> _discoveredResources = new List<ResourceDataSO>();
         private readonly Dictionary<ResourceDataSO, int> _sellAmounts = new Dictionary<ResourceDataSO, int>();
         private readonly Dictionary<ResourceDataSO, TextMeshProUGUI> _amountTexts = new Dictionary<ResourceDataSO, TextMeshProUGUI>();
         private readonly Dictionary<ResourceDataSO, TextMeshProUGUI> _inputTexts = new Dictionary<ResourceDataSO, TextMeshProUGUI>();
+        private readonly Dictionary<ResourceDataSO, TextMeshProUGUI> _valueTexts = new Dictionary<ResourceDataSO, TextMeshProUGUI>();
 
-        // ─────────────────────────────────────────────
-        //  Unity Lifecycle
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  유니티 생명주기
+        // =========================================================================
 
         private void Start()
         {
@@ -83,10 +84,13 @@ namespace FactoryDelivery.UI
             }
         }
 
-        // ─────────────────────────────────────────────
-        //  Resource Discovery
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  자원 탐색
+        // =========================================================================
 
+        /// <summary>
+        /// 게임 내에 존재하는 자원 종류를 탐색하여 목록화합니다.
+        /// </summary>
         private void HarvestResources()
         {
             _discoveredResources.Clear();
@@ -148,10 +152,13 @@ namespace FactoryDelivery.UI
             }
         }
 
-        // ─────────────────────────────────────────────
-        //  Dynamic Card Generation
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  동적 카드 생성
+        // =========================================================================
 
+        /// <summary>
+        /// 특정 자원을 위한 UI 카드를 생성합니다.
+        /// </summary>
         private void CreateResourceCard(ResourceDataSO resource)
         {
             var cardGo = new GameObject($"Card_{resource.DisplayName}");
@@ -167,14 +174,28 @@ namespace FactoryDelivery.UI
             cardOutline.effectColor = new Color(0.35f, 0.30f, 0.25f, 0.5f);
             cardOutline.effectDistance = new Vector2(1f, 1f);
 
-            // A. 자원 이름 및 개수 영역
+            // 0. 자원 아이콘 영역 추가
+            var iconGo = new GameObject("Icon");
+            iconGo.transform.SetParent(cardGo.transform, false);
+            var iconRect = iconGo.AddComponent<RectTransform>();
+            iconRect.anchorMin = new Vector2(0f, 0.5f);
+            iconRect.anchorMax = new Vector2(0f, 0.5f);
+            iconRect.pivot = new Vector2(0f, 0.5f);
+            iconRect.anchoredPosition = new Vector2(8f, 0f);
+            iconRect.sizeDelta = new Vector2(40f, 40f);
+
+            var iconImg = iconGo.AddComponent<Image>();
+            iconImg.sprite = resource.Icon;
+            iconImg.preserveAspect = true;
+
+            // A. 자원 이름 및 개수 영역 (아이콘 공간 확보를 위해 x 좌표 조정)
             var nameGo = new GameObject("NameText");
             nameGo.transform.SetParent(cardGo.transform, false);
             var nameRect = nameGo.AddComponent<RectTransform>();
             nameRect.anchorMin = new Vector2(0f, 0.5f);
             nameRect.anchorMax = new Vector2(0.6f, 1f);
             nameRect.pivot = new Vector2(0f, 0.5f);
-            nameRect.anchoredPosition = new Vector2(12f, -14f);
+            nameRect.anchoredPosition = new Vector2(55f, -14f);
             nameRect.sizeDelta = Vector2.zero;
 
             var nameText = nameGo.AddComponent<TextMeshProUGUI>();
@@ -190,7 +211,7 @@ namespace FactoryDelivery.UI
             amountRect.anchorMin = new Vector2(0f, 0.5f);
             amountRect.anchorMax = new Vector2(0.6f, 1f);
             amountRect.pivot = new Vector2(0f, 0.5f);
-            amountRect.anchoredPosition = new Vector2(90f, -14f);
+            amountRect.anchoredPosition = new Vector2(125f, -14f);
             amountRect.sizeDelta = Vector2.zero;
 
             var amountText = amountGo.AddComponent<TextMeshProUGUI>();
@@ -201,14 +222,30 @@ namespace FactoryDelivery.UI
             amountText.alignment = TextAlignmentOptions.Left;
             _amountTexts[resource] = amountText;
 
-            // B. 수량 조절 조작 컨트롤 영역
+            var valueGo = new GameObject("SalePreviewText");
+            valueGo.transform.SetParent(cardGo.transform, false);
+            var valueRect = valueGo.AddComponent<RectTransform>();
+            valueRect.anchorMin = new Vector2(0f, 0.5f);
+            valueRect.anchorMax = new Vector2(0.65f, 1f);
+            valueRect.pivot = new Vector2(0f, 0.5f);
+            valueRect.anchoredPosition = new Vector2(55f, -34f);
+            valueRect.sizeDelta = Vector2.zero;
+
+            var valueText = valueGo.AddComponent<TextMeshProUGUI>();
+            valueText.fontSize = 10;
+            valueText.color = new Color(0.78f, 0.72f, 0.62f, 1f);
+            valueText.text = "예상 판매가: 0 엽전";
+            valueText.alignment = TextAlignmentOptions.Left;
+            _valueTexts[resource] = valueText;
+
+            // B. 수량 조절 조작 컨트롤 영역 (아이콘 공간 확보를 위해 x 좌표 조정)
             var controlPanelGo = new GameObject("ControlPanel");
             controlPanelGo.transform.SetParent(cardGo.transform, false);
             var ctrlRect = controlPanelGo.AddComponent<RectTransform>();
             ctrlRect.anchorMin = new Vector2(0f, 0f);
             ctrlRect.anchorMax = new Vector2(0.65f, 0.5f);
             ctrlRect.pivot = new Vector2(0.5f, 0.5f);
-            ctrlRect.anchoredPosition = new Vector2(8f, 6f);
+            ctrlRect.anchoredPosition = new Vector2(52f, 6f);
             ctrlRect.sizeDelta = Vector2.zero;
 
             Action<int> changeAmountAction = (delta) =>
@@ -308,6 +345,9 @@ namespace FactoryDelivery.UI
             sellAllText.alignment = TextAlignmentOptions.Center;
         }
 
+        /// <summary>
+        /// 카드 내의 작은 조작 버튼을 생성합니다.
+        /// </summary>
         private GameObject CreateSmallButton(Transform parent, string label, Vector2 localPos, Action onClick)
         {
             var btnGo = new GameObject($"Btn_{label}");
@@ -343,6 +383,9 @@ namespace FactoryDelivery.UI
             return btnGo;
         }
 
+        /// <summary>
+        /// 버튼에 호버 효과를 추가합니다.
+        /// </summary>
         private void AddHoverEffect(GameObject target, Color normal, Color hover)
         {
             var btn = target.GetComponent<Button>();
@@ -357,9 +400,9 @@ namespace FactoryDelivery.UI
             btn.colors = cb;
         }
 
-        // ─────────────────────────────────────────────
-        //  UI Refresh Logic
-        // ─────────────────────────────────────────────
+        // =========================================================================
+        //  UI 갱신 로직
+        // =========================================================================
 
         private void OnInventoryChanged(ResourceDataSO resource, int currentAmount)
         {
@@ -394,6 +437,8 @@ namespace FactoryDelivery.UI
                 {
                     inputTxt.text = safeSell.ToString();
                 }
+
+                RefreshSalePreview(res, safeSell);
             }
 
             if (_totalValueText != null)
@@ -409,11 +454,34 @@ namespace FactoryDelivery.UI
             {
                 inputTxt.text = _sellAmounts[res].ToString();
             }
+
+            RefreshSalePreview(res, _sellAmounts[res]);
         }
 
-        // ─────────────────────────────────────────────
-        //  Sell Action Handlers
-        // ─────────────────────────────────────────────
+        private void RefreshSalePreview(ResourceDataSO resource, int amount)
+        {
+            if (!_valueTexts.TryGetValue(resource, out TextMeshProUGUI valueText))
+            {
+                return;
+            }
+
+            QuotaManager quotaManager = FindFirstObjectByType<QuotaManager>();
+            if (quotaManager == null)
+            {
+                valueText.text = $"예상 판매가: {resource.BaseValue * amount} 엽전";
+                return;
+            }
+
+            SaleResult preview = quotaManager.PreviewSale(resource, amount);
+            valueText.text = $"예상 판매가: {preview.TotalValue} 엽전  (단가 {preview.FinalUnitValue})";
+
+            // TODO(UI): SaleResult.ModifierNotes를 툴팁/상세 패널에 표시하면
+            // 어떤 어명, 시세, 밤 판매 보너스가 적용됐는지 플레이어에게 설명할 수 있다.
+        }
+
+        // =========================================================================
+        //  판매 액션 핸들러
+        // =========================================================================
 
         private void OnSellClicked(ResourceDataSO resource)
         {
