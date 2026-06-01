@@ -17,7 +17,7 @@ MonoBehaviour:
     \uACE0\uD488\uC9C8 \uC300\uAC00\uB9C8"
   Category: 0
   Icon: {fileID: -7647443129449019301, guid: 4d85a8f6350fac245a01f4e435121718, type: 3}
-  WeightMultiplier: 1.5
+  WeightMultiplier: 1.2
   BaseValue: 25
   IsRawResource: 0
   BaseCooldown: 0

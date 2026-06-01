@@ -1,9 +1,11 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using TMPro;
 using FactoryDelivery.Block;
+using FactoryDelivery.Core;
 using FactoryDelivery.Data;
+using System.Collections.Generic;
 
 namespace FactoryDelivery.UI
 {
@@ -32,6 +34,7 @@ namespace FactoryDelivery.UI
         private Vector3 _originalPosition;
         private Transform _originalParent;
         private Canvas _parentCanvas;
+        private readonly List<RectTransform> _previewCellRects = new List<RectTransform>();
 
         // =========================================================================
         //  설정 및 API
@@ -77,6 +80,13 @@ namespace FactoryDelivery.UI
         public void OnPointerDown(PointerEventData eventData)
         {
             if (_blockInstance == null || _blockPlacer == null) return;
+
+            FavorShopManager favorShopManager = GameManager.Instance != null ? GameManager.Instance.FavorShop : null;
+            if (favorShopManager != null && favorShopManager.IsExecutionersSwordArmed)
+            {
+                favorShopManager.TryApplyExecutionersSwordToCard(this, eventData.position);
+                return;
+            }
 
             _originalPosition = transform.position;
 
@@ -207,6 +217,7 @@ namespace FactoryDelivery.UI
         private void CreateBlockShapePreview()
         {
             if (_blockInstance == null || _blockInstance.Cells == null) return;
+            _previewCellRects.Clear();
 
             Transform existing = transform.Find("ShapePreview");
             if (existing != null)
@@ -257,7 +268,7 @@ namespace FactoryDelivery.UI
 
             foreach (var cell in cells)
             {
-                GameObject cellGo = new GameObject("CellPreview");
+                GameObject cellGo = new GameObject($"CellPreview_{_previewCellRects.Count}");
                 cellGo.transform.SetParent(previewContainer.transform, false);
                 
                 var cellRect = cellGo.AddComponent<RectTransform>();
@@ -280,7 +291,52 @@ namespace FactoryDelivery.UI
                     
                     img.color = Color.white;
                 }
+
+                _previewCellRects.Add(cellRect);
             }
+        }
+
+        public bool TrySliceCellAtScreenPosition(Vector2 screenPosition)
+        {
+            if (_blockInstance == null || _blockInstance.Cells == null || _blockInstance.Cells.Count <= 1)
+            {
+                return false;
+            }
+
+            Camera uiCamera = (_parentCanvas != null && _parentCanvas.renderMode != RenderMode.ScreenSpaceOverlay)
+                ? _parentCanvas.worldCamera
+                : null;
+
+            int closestIndex = -1;
+            float closestDistance = float.MaxValue;
+
+            for (int i = 0; i < _previewCellRects.Count && i < _blockInstance.Cells.Count; i++)
+            {
+                RectTransform previewRect = _previewCellRects[i];
+                if (previewRect == null)
+                {
+                    continue;
+                }
+
+                Vector2 previewScreen = RectTransformUtility.WorldToScreenPoint(
+                    uiCamera,
+                    previewRect.TransformPoint(previewRect.rect.center));
+                float distance = Vector2.Distance(screenPosition, previewScreen);
+                if (distance < closestDistance)
+                {
+                    closestDistance = distance;
+                    closestIndex = i;
+                }
+            }
+
+            if (closestIndex < 0 || closestDistance > 60f)
+            {
+                return false;
+            }
+
+            _blockInstance.Cells.RemoveAt(closestIndex);
+            CreateBlockShapePreview();
+            return true;
         }
 
         /// <summary>

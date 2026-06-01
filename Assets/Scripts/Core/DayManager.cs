@@ -125,9 +125,29 @@ namespace FactoryDelivery.Core
 
         public float RemainingNightTime => IsNight ? _operationTimer : Mathf.Max(0f, OperationTimeLimit - _operationTimeLimit);
 
-        public float WorkerSpeedMultiplier => IsNight ? _nightWorkerSpeedMultiplier : _dayWorkerSpeedMultiplier;
+        public float WorkerSpeedMultiplier
+        {
+            get
+            {
+                float baseMult = IsNight ? _nightWorkerSpeedMultiplier : _dayWorkerSpeedMultiplier;
+                float augmentMult = (MandateManager.Instance != null)
+                    ? MandateManager.Instance.GetWorkerSpeedMultiplier(_currentPeriod)
+                    : 1f;
+                return baseMult * augmentMult;
+            }
+        }
 
-        public float ProcessingSpeedMultiplier => IsNight ? _nightProcessingSpeedMultiplier : _dayProcessingSpeedMultiplier;
+        public float ProcessingSpeedMultiplier
+        {
+            get
+            {
+                float baseMult = IsNight ? _nightProcessingSpeedMultiplier : _dayProcessingSpeedMultiplier;
+                float augmentMult = (MandateManager.Instance != null)
+                    ? MandateManager.Instance.GetProcessingSpeedMultiplier(_currentPeriod)
+                    : 1f;
+                return baseMult * augmentMult;
+            }
+        }
 
         /// <summary>현재 배급된 블록 목록.</summary>
         public IReadOnlyList<BlockInstance> DistributedBlocks => _currentBlocks;
@@ -183,21 +203,6 @@ namespace FactoryDelivery.Core
                 }
             }
 
-            // PoC 환경에서 키보드 조작 지원 (스페이스바: 일시 정지 토글)
-            if (Input.GetKeyDown(KeyCode.Space))
-            {
-                switch (_currentPhase)
-                {
-                    case DayPhase.Operation:
-                        TogglePause();
-                        break;
-
-                    case DayPhase.Settlement:
-                        ProceedToNextDay();
-                        break;
-                }
-            }
-
             // 배속 단축키 지원 (1, 2, 3)
             if (_currentPhase == DayPhase.Operation)
             {
@@ -225,6 +230,8 @@ namespace FactoryDelivery.Core
         public void StartDay()
         {
             Debug.Log($"[DayManager] ===== Day {_currentDay} 시작 =====");
+
+            if (_workerSpawner != null) _workerSpawner.ResetDailyBonuses();
 
             _onDayChanged?.RaiseEvent(_currentDay);
             OnDayStarted?.Invoke(_currentDay);
@@ -417,6 +424,17 @@ namespace FactoryDelivery.Core
             }
 
             _onOperationEnded?.RaiseEvent();
+
+            if (_quotaManager != null &&
+                EdictManager.Instance != null &&
+                EdictManager.Instance.HasEdict(EdictType.HojoInventoryClearing))
+            {
+                int autoSoldValue = _quotaManager.ExecuteSettlementAutoSales();
+                if (autoSoldValue > 0)
+                {
+                    Debug.Log($"[DayManager] [호조의 재고 정리] 정산 직전 원자재를 자동 판매하여 {autoSoldValue} 엽전을 확보했습니다.");
+                }
+            }
 
             // 할당량 판정
             if (_quotaManager != null)

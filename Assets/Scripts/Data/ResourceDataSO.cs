@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace FactoryDelivery.Data
 {
@@ -78,6 +78,9 @@ namespace FactoryDelivery.Data
         /// <summary>판매소에서의 기본 판매 가격입니다.</summary>
         [Tooltip("판매소에서의 기본 판매 가격")]
         public int BaseValue;
+
+        /// <summary>특산품 여부입니다.</summary>
+        public bool IsSpecialty => Category == ResourceCategory.Specialty;
 
         // =========================================================================
         //  생산 속성 (원자재 전용)

@@ -74,6 +74,12 @@ namespace FactoryDelivery.Core
         [Tooltip("판매 계산/보정 관리자")]
         [SerializeField] private SaleModifierManager _saleModifierManager;
 
+        [Tooltip("어명 관리자")]
+        [SerializeField] private MandateManager _mandateManager;
+
+        [Tooltip("어명 관리자")]
+        [SerializeField] private EdictManager _edictManager;
+
         [Header("이벤트 채널")]
         [Tooltip("게임 시작 시 발행")]
         [SerializeField] private VoidEventChannelSO _onGameStarted;
@@ -108,6 +114,10 @@ namespace FactoryDelivery.Core
         public FavorShopManager FavorShop => _favorShopManager;
 
         public SaleModifierManager SaleModifiers => _saleModifierManager;
+
+        public MandateManager Mandates => _mandateManager;
+
+        public EdictManager Edicts => _edictManager;
 
         // =========================================================================
         //  이벤트
@@ -164,6 +174,24 @@ namespace FactoryDelivery.Core
                     _saleModifierManager = gameObject.AddComponent<SaleModifierManager>();
                 }
             }
+
+            if (_mandateManager == null)
+            {
+                _mandateManager = GetComponent<MandateManager>();
+                if (_mandateManager == null)
+                {
+                    _mandateManager = gameObject.AddComponent<MandateManager>();
+                }
+            }
+
+            if (_edictManager == null)
+            {
+                _edictManager = GetComponent<EdictManager>();
+                if (_edictManager == null)
+                {
+                    _edictManager = gameObject.AddComponent<EdictManager>();
+                }
+            }
         }
 
         private void Start()
@@ -184,6 +212,11 @@ namespace FactoryDelivery.Core
         {
             _inventory.Clear();
             _giftInventory.Clear();
+
+            if (_mandateManager != null) _mandateManager.ClearMandates();
+            if (_edictManager != null) _edictManager.ClearEdicts();
+            if (_saleModifierManager != null) _saleModifierManager.ClearPermanentUnitBonuses();
+
             TransitionTo(GameState.InGame);
 
             _onGameStarted?.RaiseEvent();

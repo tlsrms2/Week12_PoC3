@@ -1007,6 +1007,13 @@ namespace FactoryDelivery.Logistics
                 speedMultiplier = dayManager.WorkerSpeedMultiplier;
             }
 
+            // [하사품]: 암행어사의 마패 등으로 인한 당일 속도 보정 적용
+            WorkerSpawner spawner = FindFirstObjectByType<WorkerSpawner>();
+            if (spawner != null)
+            {
+                speedMultiplier *= spawner.TodaySpeedMultiplier;
+            }
+
             float adjustedSpeed = _currentSpeed * speedMultiplier;
             Worker[] allWorkers = FindObjectsByType<Worker>(FindObjectsSortMode.None);
             foreach (Worker other in allWorkers)

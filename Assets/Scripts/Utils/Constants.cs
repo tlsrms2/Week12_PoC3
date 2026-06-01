@@ -1,4 +1,4 @@
-namespace FactoryDelivery.Utils
+﻿namespace FactoryDelivery.Utils
 {
     /// <summary>
     /// 게임 전반에서 사용되는 모든 상수를 관리하는 중앙 저장소입니다.

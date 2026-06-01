@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3c9999913fc865941964d4b4e7be2985, type: 3}
+  m_Name: "\uAD00\uC601 \uB9C9\uAC78\uB9AC"
+  m_EditorClassIdentifier: Assembly-CSharp::FactoryDelivery.Data.ResourceDataSO
+  DisplayName: "\uAD00\uC601 \uB9C9\uAC78\uB9AC"
+  Description: 
+  Category: 0
+  Icon: {fileID: 0}
+  WeightMultiplier: 0.8
+  BaseValue: 60
+  IsRawResource: 0
+  BaseCooldown: 0

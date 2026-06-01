@@ -1,13 +1,19 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace FactoryDelivery.Core
 {
     public enum GiftType
     {
-        WarehouseFoundation,
-        WinterCold,
-        MidnightTorch
+        WarehouseFoundation,    // 물류창고 기반
+        WinterCold,             // 겨울철의 추위
+        MidnightTorch,          // 심야의 횃불
+        ExecutionersSword,      // 망나니의 큰 칼
+        PeddlersPack,           // 보부상의 봇짐
+        ScholarsBook,           // 실학자의 서책
+        RoyalInspectorToken,    // 암행어사의 마패
+        CarpentersMasterstroke, // 도편수의 묘수
+        MagistrateShout         // 포도청의 호통
     }
 
     public class GiftInventory

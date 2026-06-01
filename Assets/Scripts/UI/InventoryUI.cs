@@ -11,8 +11,37 @@ using FactoryDelivery.Block;
 namespace FactoryDelivery.UI
 {
     /// <summary>
+    /// 이 카드가 매핑할 단일 자원 카드의 UI 컴포넌트 참조들을 갖는 구조입니다.
+    /// </summary>
+    [Serializable]
+    public class ResourceCardUI
+    {
+        [Tooltip("이 카드가 매핑할 자원 데이터")]
+        public ResourceDataSO resourceData;
+
+        [Header("UI 텍스트 & 이미지 컴포넌트")]
+        public Image iconImage;
+        public TextMeshProUGUI nameText;
+        public TextMeshProUGUI amountText;
+        public TextMeshProUGUI inputValText;
+
+        [Header("수량 변경 버튼")]
+        public Button btnMinus10;
+        public Button btnMinus1;
+        public Button btnPlus1;
+        public Button btnPlus10;
+
+        [Header("판매 실행 버튼")]
+        public Button btnSell;
+        public Button btnSellAll;
+        
+        [HideInInspector]
+        public GameObject cardGo; // 런타임 자동 바인딩을 위한 캐싱 필드
+    }
+
+    /// <summary>
     /// 에디터 씬에서 직접 생성된 창고 인벤토리 패널에 부착하여 사용하는 스크립트.
-    /// 자원 목록을 탐색하여 카드 UI를 내부적으로 동적 생성하고, 글로벌 인벤토리와 연동합니다.
+    /// 씬에 미리 배치되어 컴포넌트와 연결된 자원 카드들과 연동하여 글로벌 인벤토리와 연계합니다.
     /// </summary>
     public class InventoryUI : MonoBehaviour
     {
@@ -21,7 +50,7 @@ namespace FactoryDelivery.UI
         // =========================================================================
 
         [Header("UI 참조 연결")]
-        [Tooltip("생성될 자원 카드들이 배치될 부모 컨테이너 (예: VerticalLayoutGroup이 있는 Transform)")]
+        [Tooltip("생성될 자원 카드들이 배치될 부모 컨테이너")]
         [SerializeField] private Transform _itemsContainer;
 
         [Tooltip("총 자산 가치를 표시할 텍스트 컴포넌트")]
@@ -30,15 +59,17 @@ namespace FactoryDelivery.UI
         [Tooltip("일괄 전체 판매를 담당할 버튼 (연결 시 이벤트 자동 할당됨)")]
         [SerializeField] private Button _globalSellAllButton;
 
+        [Header("미리 배치된 자원 카드 목록")]
+        [Tooltip("씬에 미리 생성되어 각 자원과 매핑된 카드 UI 컴포넌트들. 비워두면 ItemsContainer의 자식들을 자동으로 탐색하여 바인딩합니다.")]
+        [SerializeField] private List<ResourceCardUI> _resourceCards = new List<ResourceCardUI>();
+
         // =========================================================================
         //  런타임 상태
         // =========================================================================
 
-        private List<ResourceDataSO> _discoveredResources = new List<ResourceDataSO>();
         private readonly Dictionary<ResourceDataSO, int> _sellAmounts = new Dictionary<ResourceDataSO, int>();
-        private readonly Dictionary<ResourceDataSO, TextMeshProUGUI> _amountTexts = new Dictionary<ResourceDataSO, TextMeshProUGUI>();
-        private readonly Dictionary<ResourceDataSO, TextMeshProUGUI> _inputTexts = new Dictionary<ResourceDataSO, TextMeshProUGUI>();
-        private readonly Dictionary<ResourceDataSO, TextMeshProUGUI> _valueTexts = new Dictionary<ResourceDataSO, TextMeshProUGUI>();
+        private readonly Dictionary<ResourceDataSO, ResourceCardUI> _cardLookup = new Dictionary<ResourceDataSO, ResourceCardUI>();
+        private List<ResourceDataSO> _discoveredResources = new List<ResourceDataSO>();
 
         // =========================================================================
         //  유니티 생명주기
@@ -51,22 +82,7 @@ namespace FactoryDelivery.UI
                 _globalSellAllButton.onClick.AddListener(OnGlobalSellAllClicked);
             }
 
-            HarvestResources();
-
-            // 인벤토리 카드 동적 생성
-            if (_itemsContainer != null)
-            {
-                // 초기화 시 기존 테스트용 플레이스홀더 등 제거
-                foreach (Transform child in _itemsContainer)
-                {
-                    Destroy(child.gameObject);
-                }
-
-                foreach (var res in _discoveredResources)
-                {
-                    CreateResourceCard(res);
-                }
-            }
+            InitializeCards();
 
             if (GameManager.Instance != null && GameManager.Instance.Inventory != null)
             {
@@ -85,8 +101,164 @@ namespace FactoryDelivery.UI
         }
 
         // =========================================================================
-        //  자원 탐색
+        //  초기화 및 바인딩 로직
         // =========================================================================
+
+        private void InitializeCards()
+        {
+            _cardLookup.Clear();
+            _sellAmounts.Clear();
+
+            // 1. 자동 탐색 및 바인딩 (인스펙터 목록이 비어있을 경우 fallback)
+            if (_resourceCards == null || _resourceCards.Count == 0)
+            {
+                _resourceCards = new List<ResourceCardUI>();
+                if (_itemsContainer != null)
+                {
+                    HarvestResources(); // 모든 등록된 자원 탐색
+
+                    foreach (Transform child in _itemsContainer)
+                    {
+                        var cardGo = child.gameObject;
+                        var nameTrans = child.Find("NameText");
+                        if (nameTrans == null) continue;
+                        
+                        var nameTxt = nameTrans.GetComponent<TextMeshProUGUI>();
+                        if (nameTxt == null) continue;
+                        
+                        string cardResourceName = nameTxt.text.Trim();
+                        
+                        ResourceDataSO matchingRes = null;
+                        foreach (var res in _discoveredResources)
+                        {
+                            if (res.DisplayName == cardResourceName)
+                            {
+                                matchingRes = res;
+                                break;
+                            }
+                        }
+                        
+                        if (matchingRes != null)
+                        {
+                            var autoCard = new ResourceCardUI
+                            {
+                                cardGo = cardGo,
+                                resourceData = matchingRes
+                            };
+                            BindCardComponents(autoCard);
+                            _resourceCards.Add(autoCard);
+                        }
+                        else
+                        {
+                            Debug.LogWarning($"[InventoryUI] 자식 UI '{cardGo.name}' (이름: '{cardResourceName}') 에 매칭되는 자원 데이터를 찾을 수 없습니다.");
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // 인스펙터에 수동 지정된 카드가 있는 경우
+                foreach (var card in _resourceCards)
+                {
+                    if (card == null || card.resourceData == null) continue;
+                    if (card.cardGo == null && card.nameText != null)
+                    {
+                        card.cardGo = card.nameText.transform.parent.gameObject;
+                    }
+                    BindCardComponents(card);
+                }
+            }
+
+            // 2. 이벤트 등록 및 매핑 캐싱
+            foreach (var card in _resourceCards)
+            {
+                if (card == null || card.resourceData == null) continue;
+
+                var res = card.resourceData;
+                _cardLookup[res] = card;
+                _sellAmounts[res] = 1;
+
+                if (card.iconImage != null && res.Icon != null)
+                {
+                    card.iconImage.sprite = res.Icon;
+                }
+
+                if (card.btnMinus10 != null) card.btnMinus10.onClick.AddListener(() => ChangeAmount(res, -10));
+                if (card.btnMinus1 != null) card.btnMinus1.onClick.AddListener(() => ChangeAmount(res, -1));
+                if (card.btnPlus1 != null) card.btnPlus1.onClick.AddListener(() => ChangeAmount(res, 1));
+                if (card.btnPlus10 != null) card.btnPlus10.onClick.AddListener(() => ChangeAmount(res, 10));
+
+                if (card.btnSell != null) card.btnSell.onClick.AddListener(() => OnSellClicked(res));
+                if (card.btnSellAll != null) card.btnSellAll.onClick.AddListener(() => OnSellAllClicked(res));
+            }
+        }
+
+        private void BindCardComponents(ResourceCardUI card)
+        {
+            if (card.cardGo == null) return;
+            Transform t = card.cardGo.transform;
+
+            if (card.nameText == null)
+            {
+                var nameTrans = t.Find("NameText");
+                if (nameTrans != null) card.nameText = nameTrans.GetComponent<TextMeshProUGUI>();
+            }
+            if (card.amountText == null)
+            {
+                var amountTrans = t.Find("AmountText");
+                if (amountTrans != null) card.amountText = amountTrans.GetComponent<TextMeshProUGUI>();
+            }
+            if (card.iconImage == null)
+            {
+                var iconTrans = t.Find("Icon");
+                if (iconTrans != null) card.iconImage = iconTrans.GetComponent<Image>();
+            }
+
+            var ctrlPanel = t.Find("ControlPanel");
+            if (ctrlPanel != null)
+            {
+                if (card.btnMinus10 == null)
+                {
+                    var btn = ctrlPanel.Find("Btn_-10");
+                    if (btn != null) card.btnMinus10 = btn.GetComponent<Button>();
+                }
+                if (card.btnMinus1 == null)
+                {
+                    var btn = ctrlPanel.Find("Btn_-");
+                    if (btn != null) card.btnMinus1 = btn.GetComponent<Button>();
+                }
+                if (card.btnPlus1 == null)
+                {
+                    var btn = ctrlPanel.Find("Btn_+");
+                    if (btn != null) card.btnPlus1 = btn.GetComponent<Button>();
+                }
+                if (card.btnPlus10 == null)
+                {
+                    var btn = ctrlPanel.Find("Btn_+10");
+                    if (btn != null) card.btnPlus10 = btn.GetComponent<Button>();
+                }
+                if (card.inputValText == null)
+                {
+                    var txt = ctrlPanel.Find("Val");
+                    if (txt != null) card.inputValText = txt.GetComponent<TextMeshProUGUI>();
+                }
+            }
+
+            var actPanel = t.Find("ActionPanel");
+            if (actPanel != null)
+            {
+                if (card.btnSell == null)
+                {
+                    var btn = actPanel.Find("SellBtn");
+                    if (btn != null) card.btnSell = btn.GetComponent<Button>();
+                }
+                if (card.btnSellAll == null)
+                {
+                    var btn = actPanel.Find("SellAllBtn");
+                    if (btn != null) card.btnSellAll = btn.GetComponent<Button>();
+                }
+            }
+        }
 
         /// <summary>
         /// 게임 내에 존재하는 자원 종류를 탐색하여 목록화합니다.
@@ -145,259 +317,19 @@ namespace FactoryDelivery.UI
                         _discoveredResources.Add(r);
                 }
             }
-
-            foreach (var res in _discoveredResources)
-            {
-                _sellAmounts[res] = 1;
-            }
         }
 
         // =========================================================================
-        //  동적 카드 생성
+        //  수량 조절
         // =========================================================================
 
-        /// <summary>
-        /// 특정 자원을 위한 UI 카드를 생성합니다.
-        /// </summary>
-        private void CreateResourceCard(ResourceDataSO resource)
+        private void ChangeAmount(ResourceDataSO resource, int delta)
         {
-            var cardGo = new GameObject($"Card_{resource.DisplayName}");
-            cardGo.transform.SetParent(_itemsContainer, false);
-            var cardRect = cardGo.AddComponent<RectTransform>();
-            cardRect.sizeDelta = new Vector2(0f, 75f); // 아담하고 아름다운 세로 폭
-
-            // 조선 기와/목판 느낌의 약간 밝은 브라운 박스
-            var cardImg = cardGo.AddComponent<Image>();
-            cardImg.color = new Color(0.20f, 0.17f, 0.14f, 0.95f);
-
-            var cardOutline = cardGo.AddComponent<Outline>();
-            cardOutline.effectColor = new Color(0.35f, 0.30f, 0.25f, 0.5f);
-            cardOutline.effectDistance = new Vector2(1f, 1f);
-
-            // 0. 자원 아이콘 영역 추가
-            var iconGo = new GameObject("Icon");
-            iconGo.transform.SetParent(cardGo.transform, false);
-            var iconRect = iconGo.AddComponent<RectTransform>();
-            iconRect.anchorMin = new Vector2(0f, 0.5f);
-            iconRect.anchorMax = new Vector2(0f, 0.5f);
-            iconRect.pivot = new Vector2(0f, 0.5f);
-            iconRect.anchoredPosition = new Vector2(8f, 0f);
-            iconRect.sizeDelta = new Vector2(40f, 40f);
-
-            var iconImg = iconGo.AddComponent<Image>();
-            iconImg.sprite = resource.Icon;
-            iconImg.preserveAspect = true;
-
-            // A. 자원 이름 및 개수 영역 (아이콘 공간 확보를 위해 x 좌표 조정)
-            var nameGo = new GameObject("NameText");
-            nameGo.transform.SetParent(cardGo.transform, false);
-            var nameRect = nameGo.AddComponent<RectTransform>();
-            nameRect.anchorMin = new Vector2(0f, 0.5f);
-            nameRect.anchorMax = new Vector2(0.6f, 1f);
-            nameRect.pivot = new Vector2(0f, 0.5f);
-            nameRect.anchoredPosition = new Vector2(55f, -14f);
-            nameRect.sizeDelta = Vector2.zero;
-
-            var nameText = nameGo.AddComponent<TextMeshProUGUI>();
-            nameText.fontSize = 13;
-            nameText.fontStyle = FontStyles.Bold;
-            nameText.color = Color.white;
-            nameText.text = resource.DisplayName;
-            nameText.alignment = TextAlignmentOptions.Left;
-
-            var amountGo = new GameObject("AmountText");
-            amountGo.transform.SetParent(cardGo.transform, false);
-            var amountRect = amountGo.AddComponent<RectTransform>();
-            amountRect.anchorMin = new Vector2(0f, 0.5f);
-            amountRect.anchorMax = new Vector2(0.6f, 1f);
-            amountRect.pivot = new Vector2(0f, 0.5f);
-            amountRect.anchoredPosition = new Vector2(125f, -14f);
-            amountRect.sizeDelta = Vector2.zero;
-
-            var amountText = amountGo.AddComponent<TextMeshProUGUI>();
-            amountText.fontSize = 13;
-            amountText.fontStyle = FontStyles.Bold;
-            amountText.color = new Color(1.0f, 0.84f, 0f); // 골드
-            amountText.text = "0 개";
-            amountText.alignment = TextAlignmentOptions.Left;
-            _amountTexts[resource] = amountText;
-
-            var valueGo = new GameObject("SalePreviewText");
-            valueGo.transform.SetParent(cardGo.transform, false);
-            var valueRect = valueGo.AddComponent<RectTransform>();
-            valueRect.anchorMin = new Vector2(0f, 0.5f);
-            valueRect.anchorMax = new Vector2(0.65f, 1f);
-            valueRect.pivot = new Vector2(0f, 0.5f);
-            valueRect.anchoredPosition = new Vector2(55f, -34f);
-            valueRect.sizeDelta = Vector2.zero;
-
-            var valueText = valueGo.AddComponent<TextMeshProUGUI>();
-            valueText.fontSize = 10;
-            valueText.color = new Color(0.78f, 0.72f, 0.62f, 1f);
-            valueText.text = "예상 판매가: 0 엽전";
-            valueText.alignment = TextAlignmentOptions.Left;
-            _valueTexts[resource] = valueText;
-
-            // B. 수량 조절 조작 컨트롤 영역 (아이콘 공간 확보를 위해 x 좌표 조정)
-            var controlPanelGo = new GameObject("ControlPanel");
-            controlPanelGo.transform.SetParent(cardGo.transform, false);
-            var ctrlRect = controlPanelGo.AddComponent<RectTransform>();
-            ctrlRect.anchorMin = new Vector2(0f, 0f);
-            ctrlRect.anchorMax = new Vector2(0.65f, 0.5f);
-            ctrlRect.pivot = new Vector2(0.5f, 0.5f);
-            ctrlRect.anchoredPosition = new Vector2(52f, 6f);
-            ctrlRect.sizeDelta = Vector2.zero;
-
-            Action<int> changeAmountAction = (delta) =>
-            {
-                int currentHold = GameManager.Instance?.Inventory?.GetAmount(resource) ?? 0;
-                int prevVal = _sellAmounts[resource];
-                int newVal = Mathf.Clamp(prevVal + delta, 1, Mathf.Max(1, currentHold));
-                _sellAmounts[resource] = newVal;
-                RefreshResourceCardUI(resource);
-            };
-
-            float xOffset = 5f;
-            CreateSmallButton(controlPanelGo.transform, "-10", new Vector2(xOffset, 0f), () => changeAmountAction(-10));
-            xOffset += 30f;
-            CreateSmallButton(controlPanelGo.transform, "-", new Vector2(xOffset, 0f), () => changeAmountAction(-1));
-            xOffset += 26f;
-
-            var qTextGo = new GameObject("Val");
-            qTextGo.transform.SetParent(controlPanelGo.transform, false);
-            var qRect = qTextGo.AddComponent<RectTransform>();
-            qRect.anchorMin = new Vector2(0f, 0.5f);
-            qRect.anchorMax = new Vector2(0f, 0.5f);
-            qRect.pivot = new Vector2(0.5f, 0.5f);
-            qRect.anchoredPosition = new Vector2(xOffset + 15f, 0f);
-            qRect.sizeDelta = new Vector2(30f, 20f);
-            var qText = qTextGo.AddComponent<TextMeshProUGUI>();
-            qText.fontSize = 11;
-            qText.fontStyle = FontStyles.Bold;
-            qText.color = Color.white;
-            qText.text = "1";
-            qText.alignment = TextAlignmentOptions.Center;
-            _inputTexts[resource] = qText;
-            xOffset += 30f;
-
-            CreateSmallButton(controlPanelGo.transform, "+", new Vector2(xOffset, 0f), () => changeAmountAction(1));
-            xOffset += 26f;
-            CreateSmallButton(controlPanelGo.transform, "+10", new Vector2(xOffset, 0f), () => changeAmountAction(10));
-
-            // C. 실제 판매 액션 영역
-            var actionPanelGo = new GameObject("ActionPanel");
-            actionPanelGo.transform.SetParent(cardGo.transform, false);
-            var actRect = actionPanelGo.AddComponent<RectTransform>();
-            actRect.anchorMin = new Vector2(0.65f, 0f);
-            actRect.anchorMax = new Vector2(1f, 1f);
-            actRect.pivot = new Vector2(0.5f, 0.5f);
-            actRect.anchoredPosition = Vector2.zero;
-            actRect.sizeDelta = Vector2.zero;
-
-            var sellBtnGo = new GameObject("SellBtn");
-            sellBtnGo.transform.SetParent(actionPanelGo.transform, false);
-            var sellBtnRect = sellBtnGo.AddComponent<RectTransform>();
-            sellBtnRect.anchorMin = new Vector2(0.1f, 0.52f);
-            sellBtnRect.anchorMax = new Vector2(0.9f, 0.9f);
-            sellBtnRect.sizeDelta = Vector2.zero;
-            var sellBtnImg = sellBtnGo.AddComponent<Image>();
-            sellBtnImg.color = new Color(0.25f, 0.45f, 0.35f, 1f);
-            var sellBtn = sellBtnGo.AddComponent<Button>();
-            sellBtn.onClick.AddListener(() => OnSellClicked(resource));
-            AddHoverEffect(sellBtnGo, new Color(0.25f, 0.45f, 0.35f, 1f), new Color(0.32f, 0.55f, 0.42f, 1f));
-
-            var sellTextGo = new GameObject("Text");
-            sellTextGo.transform.SetParent(sellBtnGo.transform, false);
-            var sellTextRect = sellTextGo.AddComponent<RectTransform>();
-            sellTextRect.anchorMin = Vector2.zero;
-            sellTextRect.anchorMax = Vector2.one;
-            sellTextRect.sizeDelta = Vector2.zero;
-            var sellText = sellTextGo.AddComponent<TextMeshProUGUI>();
-            sellText.fontSize = 10;
-            sellText.fontStyle = FontStyles.Bold;
-            sellText.color = Color.white;
-            sellText.text = "선택 판매";
-            sellText.alignment = TextAlignmentOptions.Center;
-
-            var sellAllBtnGo = new GameObject("SellAllBtn");
-            sellAllBtnGo.transform.SetParent(actionPanelGo.transform, false);
-            var sellAllBtnRect = sellAllBtnGo.AddComponent<RectTransform>();
-            sellAllBtnRect.anchorMin = new Vector2(0.1f, 0.1f);
-            sellAllBtnRect.anchorMax = new Vector2(0.9f, 0.48f);
-            sellAllBtnRect.sizeDelta = Vector2.zero;
-            var sellAllBtnImg = sellAllBtnGo.AddComponent<Image>();
-            sellAllBtnImg.color = new Color(0.6f, 0.4f, 0.2f, 1f);
-            var sellAllBtnComponent = sellAllBtnGo.AddComponent<Button>();
-            sellAllBtnComponent.onClick.AddListener(() => OnSellAllClicked(resource));
-            AddHoverEffect(sellAllBtnGo, new Color(0.6f, 0.4f, 0.2f, 1f), new Color(0.7f, 0.48f, 0.24f, 1f));
-
-            var sellAllTextGo = new GameObject("Text");
-            sellAllTextGo.transform.SetParent(sellAllBtnGo.transform, false);
-            var sellAllTextRect = sellAllTextGo.AddComponent<RectTransform>();
-            sellAllTextRect.anchorMin = Vector2.zero;
-            sellAllTextRect.anchorMax = Vector2.one;
-            sellAllTextRect.sizeDelta = Vector2.zero;
-            var sellAllText = sellAllTextGo.AddComponent<TextMeshProUGUI>();
-            sellAllText.fontSize = 10;
-            sellAllText.fontStyle = FontStyles.Bold;
-            sellAllText.color = Color.white;
-            sellAllText.text = "전체 판매";
-            sellAllText.alignment = TextAlignmentOptions.Center;
-        }
-
-        /// <summary>
-        /// 카드 내의 작은 조작 버튼을 생성합니다.
-        /// </summary>
-        private GameObject CreateSmallButton(Transform parent, string label, Vector2 localPos, Action onClick)
-        {
-            var btnGo = new GameObject($"Btn_{label}");
-            btnGo.transform.SetParent(parent, false);
-            var rect = btnGo.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0f, 0.5f);
-            rect.anchorMax = new Vector2(0f, 0.5f);
-            rect.pivot = new Vector2(0f, 0.5f);
-            rect.anchoredPosition = localPos;
-            rect.sizeDelta = new Vector2(24f, 20f);
-
-            var img = btnGo.AddComponent<Image>();
-            img.color = new Color(0.3f, 0.27f, 0.24f, 1f);
-
-            var btn = btnGo.AddComponent<Button>();
-            btn.onClick.AddListener(() => onClick());
-            AddHoverEffect(btnGo, new Color(0.3f, 0.27f, 0.24f, 1f), new Color(0.42f, 0.38f, 0.34f, 1f));
-
-            var textGo = new GameObject("Text");
-            textGo.transform.SetParent(btnGo.transform, false);
-            var textRect = textGo.AddComponent<RectTransform>();
-            textRect.anchorMin = Vector2.zero;
-            textRect.anchorMax = Vector2.one;
-            textRect.sizeDelta = Vector2.zero;
-
-            var txt = textGo.AddComponent<TextMeshProUGUI>();
-            txt.fontSize = 9;
-            txt.fontStyle = FontStyles.Bold;
-            txt.color = Color.white;
-            txt.text = label;
-            txt.alignment = TextAlignmentOptions.Center;
-
-            return btnGo;
-        }
-
-        /// <summary>
-        /// 버튼에 호버 효과를 추가합니다.
-        /// </summary>
-        private void AddHoverEffect(GameObject target, Color normal, Color hover)
-        {
-            var btn = target.GetComponent<Button>();
-            if (btn == null) return;
-            
-            btn.transition = Selectable.Transition.ColorTint;
-            var cb = btn.colors;
-            cb.normalColor = normal;
-            cb.highlightedColor = hover;
-            cb.pressedColor = new Color(normal.r * 0.7f, normal.g * 0.7f, normal.b * 0.7f, 1f);
-            cb.selectedColor = normal;
-            btn.colors = cb;
+            int currentHold = GameManager.Instance?.Inventory?.GetAmount(resource) ?? 0;
+            int prevVal = _sellAmounts.ContainsKey(resource) ? _sellAmounts[resource] : 1;
+            int newVal = Mathf.Clamp(prevVal + delta, 1, Mathf.Max(1, currentHold));
+            _sellAmounts[resource] = newVal;
+            RefreshResourceCardUI(resource);
         }
 
         // =========================================================================
@@ -420,25 +352,27 @@ namespace FactoryDelivery.UI
 
             var inventory = GameManager.Instance.Inventory;
 
-            foreach (var res in _discoveredResources)
+            foreach (var kvp in _cardLookup)
             {
+                var res = kvp.Key;
+                var card = kvp.Value;
+
                 int count = inventory.GetAmount(res);
-                
-                if (_amountTexts.TryGetValue(res, out TextMeshProUGUI txt))
+                if (card.amountText != null)
                 {
-                    txt.text = $"<b>{count}</b> 개";
+                    card.amountText.text = $"<b>{count}</b>개";
                 }
 
-                int prevSell = _sellAmounts[res];
+                int prevSell = _sellAmounts.ContainsKey(res) ? _sellAmounts[res] : 1;
                 int safeSell = Mathf.Clamp(prevSell, 1, Mathf.Max(1, count));
                 _sellAmounts[res] = safeSell;
 
-                if (_inputTexts.TryGetValue(res, out TextMeshProUGUI inputTxt))
+                if (card.inputValText != null)
                 {
-                    inputTxt.text = safeSell.ToString();
+                    card.inputValText.text = safeSell.ToString();
                 }
 
-                RefreshSalePreview(res, safeSell);
+                UpdateNameTextWithPrice(res, safeSell);
             }
 
             if (_totalValueText != null)
@@ -450,33 +384,38 @@ namespace FactoryDelivery.UI
 
         private void RefreshResourceCardUI(ResourceDataSO res)
         {
-            if (_inputTexts.TryGetValue(res, out TextMeshProUGUI inputTxt))
+            if (_cardLookup.TryGetValue(res, out var card))
             {
-                inputTxt.text = _sellAmounts[res].ToString();
+                if (card.inputValText != null)
+                {
+                    card.inputValText.text = _sellAmounts[res].ToString();
+                }
+                UpdateNameTextWithPrice(res, _sellAmounts[res]);
             }
-
-            RefreshSalePreview(res, _sellAmounts[res]);
         }
 
-        private void RefreshSalePreview(ResourceDataSO resource, int amount)
+        private void UpdateNameTextWithPrice(ResourceDataSO resource, int amount)
         {
-            if (!_valueTexts.TryGetValue(resource, out TextMeshProUGUI valueText))
+            if (!_cardLookup.TryGetValue(resource, out var card) || card.nameText == null)
             {
                 return;
             }
 
+            int price = resource.BaseValue * amount;
+            
             QuotaManager quotaManager = FindFirstObjectByType<QuotaManager>();
-            if (quotaManager == null)
+            if (quotaManager != null)
             {
-                valueText.text = $"예상 판매가: {resource.BaseValue * amount} 엽전";
-                return;
+                SaleResult preview = quotaManager.PreviewSale(resource, amount);
+                price = preview.TotalValue;
             }
 
-            SaleResult preview = quotaManager.PreviewSale(resource, amount);
-            valueText.text = $"예상 판매가: {preview.TotalValue} 엽전  (단가 {preview.FinalUnitValue})";
-
-            // TODO(UI): SaleResult.ModifierNotes를 툴팁/상세 패널에 표시하면
-            // 어떤 어명, 시세, 밤 판매 보너스가 적용됐는지 플레이어에게 설명할 수 있다.
+            // UI상의 이름에 가격 표시 (예: "벼 (10원)" 또는 "쌀 (10원)")
+            // 원래 씬에 작성되어 있던 이름(벼, 콩, 쌀 가마니 등)을 최대한 존중하여 표시하기 위해,
+            // resource.DisplayName 대신 원래 NameText에 들어있던 리터럴에서 가격을 파싱하기 전 이름 부분을 보존합니다.
+            string baseName = resource.DisplayName;
+            
+            card.nameText.text = $"{baseName}({price}원)";
         }
 
         // =========================================================================
@@ -489,7 +428,7 @@ namespace FactoryDelivery.UI
             if (quotaMgr == null || GameManager.Instance?.Inventory == null) return;
 
             int hold = GameManager.Instance.Inventory.GetAmount(resource);
-            int sellTarget = _sellAmounts[resource];
+            int sellTarget = _sellAmounts.ContainsKey(resource) ? _sellAmounts[resource] : 0;
 
             if (hold >= sellTarget && sellTarget > 0)
             {
@@ -522,7 +461,7 @@ namespace FactoryDelivery.UI
 
             var inventory = GameManager.Instance.Inventory;
             var itemsToSell = new List<KeyValuePair<ResourceDataSO, int>>();
-            
+
             foreach (var kvp in inventory.Holdings)
             {
                 if (kvp.Value > 0) itemsToSell.Add(kvp);

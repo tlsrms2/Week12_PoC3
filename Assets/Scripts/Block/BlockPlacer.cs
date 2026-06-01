@@ -290,7 +290,13 @@ namespace FactoryDelivery.Block
                             }
                         }
 
-                        int totalCost = _roadCost * tilesToPlace.Count;
+                        int currentRoadCost = _roadCost;
+                        if (MandateManager.Instance != null && MandateManager.Instance.HasMandate(MandateType.MasterStrokeRoad))
+                        {
+                            currentRoadCost = Mathf.CeilToInt(_roadCost * 0.5f);
+                        }
+
+                        int totalCost = currentRoadCost * tilesToPlace.Count;
                         if (quotaMgr.WalletBalance >= totalCost)
                         {
                             quotaMgr.TrySpendProgress(totalCost);

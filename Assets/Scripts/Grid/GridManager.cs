@@ -265,6 +265,21 @@ namespace FactoryDelivery.Grid
 
             // 새 배치 경로
             entity = new TileEntity(tileData, pos);
+
+            // [장인의 손길]: 새 가공 시설 배치 시 15% 확률로 레벨 2로 시작
+            bool isProcessingFacility = tileData.Type == TileType.Facility && 
+                                        tileData.AssociatedFacility != null && 
+                                        tileData.AssociatedFacility.Type == FacilityType.ProcessingFacility;
+
+            if (isProcessingFacility && MandateManager.Instance != null && MandateManager.Instance.HasMandate(MandateType.ArtisansTouch))
+            {
+                if (UnityEngine.Random.value < 0.15f)
+                {
+                    entity.LevelUp();
+                    Debug.Log($"[GridManager] [장인의 손길] 발동! {tileData.DisplayName}이(가) Lv 2로 배치되었습니다.");
+                }
+            }
+
             if (isRoad)
             {
                 _roadGrid[pos] = entity;
@@ -565,6 +580,33 @@ namespace FactoryDelivery.Grid
         public bool IsEmpty(Vector2Int pos)
         {
             return IsInBounds(pos) && GetGridEntity(pos) == null;
+        }
+
+        /// <summary>
+        /// 현재 플레이어가 소유한 부지 내에서 비어 있는 일반 타일 칸 수를 반환합니다.
+        /// 도로 레이어만 점유한 칸은 빈칸으로 간주합니다.
+        /// </summary>
+        public int GetEmptyOwnedCellCount()
+        {
+            int emptyCount = 0;
+            int plotSize = Constants.LandPlotSize;
+
+            foreach (Vector2Int plotOrigin in _ownedPlots)
+            {
+                for (int x = 0; x < plotSize; x++)
+                {
+                    for (int y = 0; y < plotSize; y++)
+                    {
+                        Vector2Int pos = plotOrigin + new Vector2Int(x, y);
+                        if (GetGridEntity(pos) == null)
+                        {
+                            emptyCount++;
+                        }
+                    }
+                }
+            }
+
+            return emptyCount;
         }
 
         /// <summary>

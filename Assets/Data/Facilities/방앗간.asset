@@ -16,7 +16,7 @@ MonoBehaviour:
   Type: 1
   Icon: {fileID: 6400024440359499373, guid: 3cf48e94f4142274c87e1ad712df2fb6, type: 3}
   SupportedRecipes:
-  - {fileID: 11400000, guid: 7d5e692beba1d9749b5c57442e508d6b, type: 2}
+  - {fileID: 11400000, guid: b5f32bc8053cc07468bb6338ecc72082, type: 2}
   BaseProcessingSpeed: 1
   LevelSpeedBonus: 0.2
   WorkerSpawnInterval: 4

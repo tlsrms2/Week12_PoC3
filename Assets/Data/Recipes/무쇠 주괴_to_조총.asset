@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 917bb13e5a90b4d4084486b54fc52d5d, type: 3}
+  m_Name: "\uBB34\uC1E0 \uC8FC\uAD34_to_\uC870\uCD1D"
+  m_EditorClassIdentifier: Assembly-CSharp::FactoryDelivery.Data.RecipeDataSO
+  InputResource: {fileID: 11400000, guid: 295ae808ef07a21499aea9eb14a72291, type: 2}
+  OutputResource: {fileID: 11400000, guid: b61e26f57cf2cd041b509be31e711fb5, type: 2}
+  BaseProcessingTime: 30
+  ProcessingTier: 2

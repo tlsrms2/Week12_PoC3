@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 using FactoryDelivery.Data;
@@ -16,11 +16,15 @@ namespace FactoryDelivery.Core
         private int _requiredAmount;
         private int _deliveredAmount;
         private int _favorBalance;
+        private int _todayFavorEarned;
+        private readonly List<string> _todayFavorReasons = new List<string>();
 
         public ResourceDataSO CurrentTributeResource => _currentTributeResource;
         public int RequiredAmount => _requiredAmount;
         public int DeliveredAmount => _deliveredAmount;
         public int FavorBalance => _favorBalance;
+        public int TodayFavorEarned => _todayFavorEarned;
+        public IReadOnlyList<string> TodayFavorReasons => _todayFavorReasons;
 
         public event Action OnTributeChanged;
         public event Action<int> OnFavorChanged;
@@ -62,6 +66,8 @@ namespace FactoryDelivery.Core
             _currentTributeResource = candidates[index];
             _requiredAmount = Mathf.Clamp(8 + dayNumber * 2, 10, 40);
             _deliveredAmount = 0;
+            _todayFavorEarned = 0;
+            _todayFavorReasons.Clear();
 
             OnTributeChanged?.Invoke();
             Debug.Log($"[TributeManager] 오늘의 진상품: {_currentTributeResource.DisplayName} {_requiredAmount}개");
@@ -94,13 +100,25 @@ namespace FactoryDelivery.Core
                 return;
             }
 
-            int before = _deliveredAmount;
-            _deliveredAmount = Mathf.Min(_requiredAmount, _deliveredAmount + amount);
+            _deliveredAmount += amount;
 
-            if (before < _requiredAmount && _deliveredAmount >= _requiredAmount)
+            int completedThresholds = 0;
+            while (_requiredAmount > 0 && _deliveredAmount >= _requiredAmount)
             {
+                int completedRequirement = _requiredAmount;
+                _deliveredAmount -= _requiredAmount;
                 AddFavor(1);
-                Debug.Log($"[TributeManager] 진상품 납품 완료! 총애 +1 (보유: {_favorBalance})");
+                _todayFavorEarned++;
+                _todayFavorReasons.Add($"{_currentTributeResource.DisplayName} {completedRequirement}개 납품");
+                completedThresholds++;
+                _requiredAmount += 2;
+            }
+
+            if (completedThresholds > 0)
+            {
+                Debug.Log(
+                    $"[TributeManager] 진상품 납품 {completedThresholds}회 완료! 총애 +{completedThresholds} " +
+                    $"(보유: {_favorBalance}, 다음 요구치: {_requiredAmount})");
             }
 
             OnTributeChanged?.Invoke();

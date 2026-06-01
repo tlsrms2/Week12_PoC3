@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using FactoryDelivery.Data;
 using FactoryDelivery.Events;
+using FactoryDelivery.Grid;
+using FactoryDelivery.Resource;
 
 namespace FactoryDelivery.Core
 {
@@ -11,10 +14,6 @@ namespace FactoryDelivery.Core
     /// </summary>
     public class QuotaManager : MonoBehaviour
     {
-        // ─────────────────────────────────────────────
-        //  Inspector
-        // ─────────────────────────────────────────────
-
         [Header("데이터")]
         [Tooltip("일별 할당량 테이블")]
         [SerializeField] private QuotaTableSO _quotaTable;
@@ -31,53 +30,22 @@ namespace FactoryDelivery.Core
 
         [Header("판매 계산")]
         [SerializeField] private SaleModifierManager _saleModifierManager;
-
-        // ─────────────────────────────────────────────
-        //  Runtime State
-        // ─────────────────────────────────────────────
+        [SerializeField] private ResourceRegistry _resourceRegistry;
+        [SerializeField] private GridManager _gridManager;
 
         private int _currentQuota;
         private int _currentProgress;
         private bool _quotaMetNotified;
         private int _walletBalance;
 
-        // ─────────────────────────────────────────────
-        //  Properties
-        // ─────────────────────────────────────────────
-
-        /// <summary>오늘의 목표 할당량.</summary>
         public int CurrentQuota => _currentQuota;
-
-        /// <summary>오늘 판매한 총 가치.</summary>
         public int CurrentProgress => _currentProgress;
-
-        /// <summary>할당량을 달성했는지 여부.</summary>
         public bool IsQuotaMet => _currentProgress >= _currentQuota;
-
-        /// <summary>플레이어가 현재 보유한 소비 가능한 엽전 잔액.</summary>
         public int WalletBalance => _walletBalance;
 
-        // ─────────────────────────────────────────────
-        //  Events
-        // ─────────────────────────────────────────────
-
-        /// <summary>
-        /// 할당량 진행 상황이 변경될 때 발생.
-        /// 페이로드: (현재 진행량, 목표 할당량).
-        /// </summary>
         public event Action<int, int> OnQuotaProgressChanged;
-
-        /// <summary>
-        /// 보유 엽전 잔액이 변경될 때 발생.
-        /// 페이로드: (현재 보유 엽전).
-        /// </summary>
         public event Action<int> OnWalletBalanceChanged;
-
         public event Action<ResourceDataSO, int, int> OnResourceSoldDetailed;
-
-        // ─────────────────────────────────────────────
-        //  Unity Lifecycle
-        // ─────────────────────────────────────────────
 
         private void OnEnable()
         {
@@ -95,14 +63,6 @@ namespace FactoryDelivery.Core
             }
         }
 
-        // ─────────────────────────────────────────────
-        //  Public API
-        // ─────────────────────────────────────────────
-
-        /// <summary>
-        /// 새로운 Day를 시작한다. 할당량을 계산하고 진행 상황을 초기화한다.
-        /// </summary>
-        /// <param name="dayNumber">시작하는 일차 (1부터).</param>
         public void StartNewDay(int dayNumber)
         {
             _currentQuota = _quotaTable != null
@@ -114,7 +74,7 @@ namespace FactoryDelivery.Core
 
             if (dayNumber == 1)
             {
-                _walletBalance = 200; // 1일차 시작 시 기본 엽전 200 제공
+                _walletBalance = 200;
             }
 
             Debug.Log($"[QuotaManager] {dayNumber}일차 할당량: {_currentQuota}");
@@ -123,43 +83,25 @@ namespace FactoryDelivery.Core
             OnWalletBalanceChanged?.Invoke(_walletBalance);
         }
 
-        /// <summary>
-        /// 할당량 초과분을 반환한다.
-        /// </summary>
-        /// <returns>할당량을 초과한 판매 가치. 미달이면 0.</returns>
         public int GetSurplus()
         {
             return Mathf.Max(0, _currentProgress - _currentQuota);
         }
 
-        /// <summary>
-        /// 할당량 달성 비율을 반환한다.
-        /// </summary>
-        /// <returns>0 ~ 1+ 사이의 비율.</returns>
         public float GetProgressRatio()
         {
             if (_currentQuota <= 0) return 1f;
             return (float)_currentProgress / _currentQuota;
         }
 
-        // ─────────────────────────────────────────────
-        //  Event Handlers
-        // ─────────────────────────────────────────────
-
-        /// <summary>
-        /// 자원 판매 시 호출되는 이벤트 핸들러.
-        /// 판매 가치를 진행 상황에 추가한다.
-        /// </summary>
-        /// <param name="value">판매된 자원의 가치.</param>
         private void OnResourceSold(int value)
         {
             _currentProgress += value;
-            _walletBalance += value; // 판매 수익을 지갑에 추가
+            _walletBalance += value;
 
             OnQuotaProgressChanged?.Invoke(_currentProgress, _currentQuota);
             OnWalletBalanceChanged?.Invoke(_walletBalance);
 
-            // 할당량 최초 달성 알림
             if (IsQuotaMet && !_quotaMetNotified)
             {
                 _quotaMetNotified = true;
@@ -168,24 +110,111 @@ namespace FactoryDelivery.Core
             }
         }
 
-        /// <summary>
-        /// 인벤토리 자원을 직접 판매하여 금액을 획득한다.
-        /// </summary>
-        /// <param name="resource">판매할 자원 데이터.</param>
-        /// <param name="amount">판매할 수량.</param>
         public void SellResource(ResourceDataSO resource, int amount)
         {
-            if (resource == null || amount <= 0) return;
+            if (resource == null || amount <= 0)
+            {
+                return;
+            }
 
             SaleResult saleResult = CalculateSale(resource, amount);
+            ApplySale(resource, amount, saleResult);
+        }
+
+        public SaleResult PreviewSale(ResourceDataSO resource, int amount)
+        {
+            return CalculateSale(resource, amount);
+        }
+
+        public int ExecuteSettlementAutoSales()
+        {
+            ResolveSaleReferences();
+
+            if (GameManager.Instance == null || GameManager.Instance.Inventory == null)
+            {
+                return 0;
+            }
+
+            ResourceInventory inventory = GameManager.Instance.Inventory;
+            var pendingSales = new List<(ResourceDataSO resource, int amount)>();
+
+            foreach (KeyValuePair<ResourceDataSO, int> holding in inventory.Holdings)
+            {
+                if (holding.Key != null && holding.Key.IsRawResource && holding.Value > 0)
+                {
+                    pendingSales.Add((holding.Key, holding.Value));
+                }
+            }
+
+            int totalValue = 0;
+            foreach ((ResourceDataSO resource, int amount) sale in pendingSales)
+            {
+                if (!inventory.TryConsume(sale.resource, sale.amount))
+                {
+                    continue;
+                }
+
+                SaleResult saleResult = CalculateSale(sale.resource, sale.amount, true);
+                ApplySale(sale.resource, sale.amount, saleResult);
+                totalValue += saleResult.TotalValue;
+            }
+
+            return totalValue;
+        }
+
+        private SaleResult CalculateSale(ResourceDataSO resource, int amount, bool isSettlementAutoSale = false)
+        {
+            ResolveSaleReferences();
+
+            var context = new SaleContext(
+                resource,
+                amount,
+                GameManager.Instance != null ? GameManager.Instance.Day : FindFirstObjectByType<DayManager>(),
+                GameManager.Instance != null ? GameManager.Instance.Tribute : FindFirstObjectByType<TributeManager>(),
+                GameManager.Instance != null ? GameManager.Instance.Inventory : null,
+                _resourceRegistry,
+                _gridManager,
+                isSettlementAutoSale);
+
+            if (_saleModifierManager != null)
+            {
+                return _saleModifierManager.CalculateSale(context);
+            }
+
+            int baseUnitValue = resource != null ? resource.BaseValue : 0;
+            int safeAmount = Mathf.Max(0, amount);
+            return new SaleResult(baseUnitValue, baseUnitValue, baseUnitValue * safeAmount, Array.Empty<string>());
+        }
+
+        public bool TrySpendProgress(int amount)
+        {
+            if (_walletBalance < amount) return false;
+
+            _walletBalance -= amount;
+            OnWalletBalanceChanged?.Invoke(_walletBalance);
+            Debug.Log($"[QuotaManager] 엽전 {amount} 소모 완료. (잔액: {_walletBalance})");
+            return true;
+        }
+
+        public void AddWalletBalance(int amount)
+        {
+            if (amount <= 0) return;
+
+            _walletBalance += amount;
+            OnWalletBalanceChanged?.Invoke(_walletBalance);
+            Debug.Log($"[QuotaManager] 엽전 {amount} 환불 완료. (잔액: {_walletBalance})");
+        }
+
+        private void ApplySale(ResourceDataSO resource, int amount, SaleResult saleResult)
+        {
             int totalValue = saleResult.TotalValue;
+
             if (_onResourceSoldChannel != null)
             {
                 _onResourceSoldChannel.RaiseEvent(totalValue);
             }
             else
             {
-                // 채널이 혹시 없을 경우 폴백 처리
                 _currentProgress += totalValue;
                 _walletBalance += totalValue;
                 OnQuotaProgressChanged?.Invoke(_currentProgress, _currentQuota);
@@ -198,16 +227,12 @@ namespace FactoryDelivery.Core
                     Debug.Log($"[QuotaManager] 할당량 달성! ({_currentProgress}/{_currentQuota})");
                 }
             }
+
             OnResourceSoldDetailed?.Invoke(resource, amount, totalValue);
             Debug.Log($"[QuotaManager] {resource.DisplayName} {amount}개 판매 완료. 가치: {totalValue} 엽전");
         }
 
-        public SaleResult PreviewSale(ResourceDataSO resource, int amount)
-        {
-            return CalculateSale(resource, amount);
-        }
-
-        private SaleResult CalculateSale(ResourceDataSO resource, int amount)
+        private void ResolveSaleReferences()
         {
             if (_saleModifierManager == null)
             {
@@ -216,48 +241,15 @@ namespace FactoryDelivery.Core
                     : FindFirstObjectByType<SaleModifierManager>();
             }
 
-            var context = new SaleContext(
-                resource,
-                amount,
-                GameManager.Instance != null ? GameManager.Instance.Day : FindFirstObjectByType<DayManager>(),
-                GameManager.Instance != null ? GameManager.Instance.Tribute : FindFirstObjectByType<TributeManager>());
-
-            if (_saleModifierManager != null)
+            if (_resourceRegistry == null)
             {
-                return _saleModifierManager.CalculateSale(context);
+                _resourceRegistry = FindFirstObjectByType<ResourceRegistry>();
             }
 
-            int baseUnitValue = resource != null ? resource.BaseValue : 0;
-            int safeAmount = Mathf.Max(0, amount);
-            return new SaleResult(baseUnitValue, baseUnitValue, baseUnitValue * safeAmount, Array.Empty<string>());
-        }
-
-        /// <summary>
-        /// 비용(엽전)을 지불한다. 성공 시 true를 반환하고 보유 엽전을 삭감한다.
-        /// </summary>
-        /// <param name="amount">소모할 엽전의 양.</param>
-        /// <returns>지불 가능 및 성공 여부.</returns>
-        public bool TrySpendProgress(int amount)
-        {
-            if (_walletBalance < amount) return false;
-            
-            _walletBalance -= amount;
-            OnWalletBalanceChanged?.Invoke(_walletBalance);
-            Debug.Log($"[QuotaManager] 엽전 {amount} 소모 완료. (잔액: {_walletBalance})");
-            return true;
-        }
-
-        /// <summary>
-        /// 지갑 잔액을 추가한다. (주로 환불 처리 시 사용)
-        /// </summary>
-        /// <param name="amount">추가할 엽전의 양.</param>
-        public void AddWalletBalance(int amount)
-        {
-            if (amount <= 0) return;
-
-            _walletBalance += amount;
-            OnWalletBalanceChanged?.Invoke(_walletBalance);
-            Debug.Log($"[QuotaManager] 엽전 {amount} 환불 완료. (잔액: {_walletBalance})");
+            if (_gridManager == null)
+            {
+                _gridManager = FindFirstObjectByType<GridManager>();
+            }
         }
     }
 }

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using FactoryDelivery.Data;
 using FactoryDelivery.Facility;
@@ -77,6 +77,35 @@ namespace FactoryDelivery.Logistics
             workers.Add(worker);
 
             return worker;
+        }
+
+        public List<Worker> GetAllActiveWorkers()
+        {
+            List<Worker> activeWorkers = new List<Worker>();
+            foreach (var workers in _houseWorkers.Values)
+            {
+                foreach (var worker in workers)
+                {
+                    if (worker != null && worker.gameObject.activeInHierarchy)
+                    {
+                        activeWorkers.Add(worker);
+                    }
+                }
+            }
+            return activeWorkers;
+        }
+
+        private float _todaySpeedMultiplier = 1f;
+        public float TodaySpeedMultiplier => _todaySpeedMultiplier;
+
+        public void SetTodaySpeedMultiplier(float multiplier)
+        {
+            _todaySpeedMultiplier = multiplier;
+        }
+
+        public void ResetDailyBonuses()
+        {
+            _todaySpeedMultiplier = 1f;
         }
 
         public bool HasWorkerNearPosition(Vector3 position, float worldDistance)

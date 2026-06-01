@@ -16,7 +16,7 @@ MonoBehaviour:
   Description: "\uC804\uD1B5 \uBC29\uC2DD\uC73C\uB85C \uAD73\uD78C \uBA54\uC8FC"
   Category: 0
   Icon: {fileID: 4041535135757215458, guid: 4d85a8f6350fac245a01f4e435121718, type: 3}
-  WeightMultiplier: 1
-  BaseValue: 22
+  WeightMultiplier: 1.1
+  BaseValue: 25
   IsRawResource: 0
   BaseCooldown: 0

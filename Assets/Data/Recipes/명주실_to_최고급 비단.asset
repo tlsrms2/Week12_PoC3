@@ -10,9 +10,9 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 917bb13e5a90b4d4084486b54fc52d5d, type: 3}
-  m_Name: "\uCF69-\uBA54\uC8FC"
+  m_Name: "\uBA85\uC8FC\uC2E4_to_\uCD5C\uACE0\uAE09 \uBE44\uB2E8"
   m_EditorClassIdentifier: Assembly-CSharp::FactoryDelivery.Data.RecipeDataSO
-  InputResource: {fileID: 11400000, guid: 8aaab3671df66be478060ac7ed872922, type: 2}
-  OutputResource: {fileID: 11400000, guid: 144a202eaf2bc9346b7a1df4ecb6f695, type: 2}
-  BaseProcessingTime: 4
-  ProcessingTier: 1
+  InputResource: {fileID: 11400000, guid: 6dd693d37aad5dc46859b3b2e254cf19, type: 2}
+  OutputResource: {fileID: 11400000, guid: 20bcf499eba55cb479a10179b4d2f394, type: 2}
+  BaseProcessingTime: 18
+  ProcessingTier: 2
