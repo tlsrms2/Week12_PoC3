@@ -58,6 +58,10 @@ namespace FactoryDelivery.Core
         [Tooltip("상수 설정을 관리하는 ScriptableObject")]
         [SerializeField] private FactoryDelivery.Data.GameSettingsSO _gameSettings;
 
+        [Header("임시 디버그/기획 제어")]
+        [Tooltip("체크 시 오늘의 진상품, 총애, 어명, 교지, 하사품 등 로그라이크 시스템과 UI를 임시 비활성화합니다. 완전히 겹치기 공장 시스템만 남습니다.")]
+        [SerializeField] private bool _disableRoguelikeSystems = false;
+
         [Header("매니저 참조")]
         [Tooltip("Day 사이클 관리자")]
         [SerializeField] private DayManager _dayManager;
@@ -101,6 +105,9 @@ namespace FactoryDelivery.Core
 
         /// <summary>현재 게임 상태.</summary>
         public GameState CurrentState => _currentState;
+
+        /// <summary>로그라이크 시스템 비활성화 여부.</summary>
+        public bool DisableRoguelikeSystems => _disableRoguelikeSystems;
 
         /// <summary>플레이어의 글로벌 자원 인벤토리.</summary>
         public ResourceInventory Inventory => _inventory;

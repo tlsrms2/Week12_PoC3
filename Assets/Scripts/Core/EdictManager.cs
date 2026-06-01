@@ -56,9 +56,23 @@ namespace FactoryDelivery.Core
             OnEdictsChanged?.Invoke();
         }
 
-        public bool HasEdict(EdictType edict) => _equippedEdicts.Contains(edict);
+        public bool HasEdict(EdictType edict)
+        {
+            if (GameManager.Instance != null && GameManager.Instance.DisableRoguelikeSystems)
+            {
+                return false;
+            }
+            return _equippedEdicts.Contains(edict);
+        }
 
-        public List<EdictType> GetEquippedEdicts() => new List<EdictType>(_equippedEdicts);
+        public List<EdictType> GetEquippedEdicts()
+        {
+            if (GameManager.Instance != null && GameManager.Instance.DisableRoguelikeSystems)
+            {
+                return new List<EdictType>();
+            }
+            return new List<EdictType>(_equippedEdicts);
+        }
 
         public void ClearEdicts()
         {

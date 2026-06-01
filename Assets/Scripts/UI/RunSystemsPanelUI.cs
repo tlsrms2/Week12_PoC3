@@ -13,11 +13,21 @@ namespace FactoryDelivery.UI
 
         private void Awake()
         {
+            if (GameManager.Instance != null && GameManager.Instance.DisableRoguelikeSystems)
+            {
+                gameObject.SetActive(false);
+                return;
+            }
             EnsureScenePanelFallback();
         }
 
         private void OnEnable()
         {
+            if (GameManager.Instance != null && GameManager.Instance.DisableRoguelikeSystems)
+            {
+                gameObject.SetActive(false);
+                return;
+            }
             Subscribe();
             Refresh();
         }

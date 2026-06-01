@@ -77,6 +77,12 @@ namespace FactoryDelivery.UI
             if (_mandateChoiceRoot != null) _mandateChoiceRoot.gameObject.SetActive(false);
             _favorShopUI?.HideShop();
 
+            if (GameManager.Instance != null && GameManager.Instance.DisableRoguelikeSystems)
+            {
+                if (_tributeText != null) _tributeText.gameObject.SetActive(false);
+                if (_mandateListRoot != null) _mandateListRoot.gameObject.SetActive(false);
+            }
+
             RefreshAllUI();
         }
 
@@ -288,6 +294,11 @@ namespace FactoryDelivery.UI
 
         private string BuildFavorSettlementText()
         {
+            if (GameManager.Instance != null && GameManager.Instance.DisableRoguelikeSystems)
+            {
+                return string.Empty;
+            }
+
             if (_tributeManager == null)
             {
                 return "총애 획득: 0";
@@ -571,6 +582,13 @@ namespace FactoryDelivery.UI
             if (_settlementUiStep == SettlementUiStep.Report)
             {
                 if (_settlementPanel != null) _settlementPanel.SetActive(false);
+
+                if (GameManager.Instance != null && GameManager.Instance.DisableRoguelikeSystems)
+                {
+                    _settlementUiStep = SettlementUiStep.None;
+                    _dayManager.ProceedToNextDay();
+                    return;
+                }
 
                 if (_quotaManager != null && _quotaManager.IsQuotaMet)
                 {

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace FactoryDelivery.Core
@@ -30,6 +30,10 @@ namespace FactoryDelivery.Core
         public void Add(GiftType giftType, int amount = 1)
         {
             if (amount <= 0)
+            {
+                return;
+            }
+            if (GameManager.Instance != null && GameManager.Instance.DisableRoguelikeSystems)
             {
                 return;
             }

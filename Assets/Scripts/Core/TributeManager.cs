@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using FactoryDelivery.Data;
@@ -51,6 +51,19 @@ namespace FactoryDelivery.Core
         {
             ResolveReferences();
 
+            if (GameManager.Instance != null && GameManager.Instance.DisableRoguelikeSystems)
+            {
+                _currentTributeResource = null;
+                _requiredAmount = 0;
+                _deliveredAmount = 0;
+                _todayFavorEarned = 0;
+                _todayFavorReasons.Clear();
+                _favorBalance = 0;
+                OnTributeChanged?.Invoke();
+                Debug.Log("[TributeManager] 로그라이크 비활성화 모드이므로 오늘의 진상품을 설정하지 않습니다.");
+                return;
+            }
+
             List<ResourceDataSO> candidates = GetTributeCandidates();
             if (candidates.Count == 0)
             {
@@ -76,6 +89,7 @@ namespace FactoryDelivery.Core
         public void AddFavor(int amount)
         {
             if (amount <= 0) return;
+            if (GameManager.Instance != null && GameManager.Instance.DisableRoguelikeSystems) return;
 
             _favorBalance += amount;
             OnFavorChanged?.Invoke(_favorBalance);

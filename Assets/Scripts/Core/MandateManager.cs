@@ -46,7 +46,14 @@ namespace FactoryDelivery.Core
         /// <summary>
         /// 특정 어명이 활성화되어 있는지 확인합니다.
         /// </summary>
-        public bool HasMandate(MandateType mandate) => _activeMandates.Contains(mandate);
+        public bool HasMandate(MandateType mandate)
+        {
+            if (GameManager.Instance != null && GameManager.Instance.DisableRoguelikeSystems)
+            {
+                return false;
+            }
+            return _activeMandates.Contains(mandate);
+        }
 
         /// <summary>
         /// 모든 어명 효과를 초기화합니다. (새 게임 시작 시)
